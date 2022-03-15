@@ -1,0 +1,44 @@
+<thead>
+    <tr>
+        <th class="table-micro-collumn text-center"><strong>POS</strong></th>
+        <th class="table-micro-collumn text-center">#</th><!---->
+        <th ng-if="!$root.isGreyhoundRace"><strong>Horse</strong></th><!----><!---->
+        <th class="table-micro-collumn text-center"><strong>Win</strong></th>
+        <th class="table-micro-collumn text-center"><strong>Place</strong></th>
+        <th class="table-micro-collumn text-center"><strong>Show</strong></th>
+    </tr>
+</thead>
+<tbody class="child-align-middle"><!----><!---->
+    <tr class="runner" ng-repeat="runner in raceResultsCtrl.raceResults.runners track by $index" ng-if="!raceResultsCtrl.hideResults">
+        <td class="text-center"><strong ng-bind="runner.finishPosition | ordinalNumberString">1st:</strong></td>
+        <td class="text-center"><!----><div ng-if="!$root.isGreyhoundRace" name="runner-id" class="horse-number-sign" ng-style="{'background-color': runner.saddleColor}" style="background-color: rgb(47, 154, 59);"><span class="horse-number-label" ng-style="{'color': runner.numberColor}" ng-bind="runner.runnerNumber || runner.bettingInterestNumber" style="color: rgb(0, 0, 0);">12</span></div><!----><!----></td>
+        <td class="text-left"><strong class="h5 horse-name" ng-bind="runner.runnerName">Morrissette</strong></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.winPayoff)">$4.60</td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.placePayoff)">$3.60</td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.showPayoff)">$2.60</td>
+    </tr><!----><!----><!---->
+    <tr class="runner" ng-repeat="runner in raceResultsCtrl.raceResults.runners track by $index" ng-if="!raceResultsCtrl.hideResults">
+        <td class="text-center"><strong ng-bind="runner.finishPosition | ordinalNumberString">2nd:</strong></td>
+        <td class="text-center"><!----><div ng-if="!$root.isGreyhoundRace" name="runner-id" class="horse-number-sign" ng-style="{'background-color': runner.saddleColor}" style="background-color: rgb(178, 118, 146);"><span class="horse-number-label" ng-style="{'color': runner.numberColor}" ng-bind="runner.runnerNumber || runner.bettingInterestNumber" style="color: rgb(0, 0, 0);">8</span></div><!----><!----></td>
+        <td class="text-left"><strong class="h5 horse-name" ng-bind="runner.runnerName">Under The Tassels</strong></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.winPayoff)"></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.placePayoff)">$9.20</td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.showPayoff)">$7.20</td>
+    </tr><!----><!----><!---->
+    <tr class="runner" ng-repeat="runner in raceResultsCtrl.raceResults.runners track by $index" ng-if="!raceResultsCtrl.hideResults">
+        <td class="text-center"><strong ng-bind="runner.finishPosition | ordinalNumberString">3rd:</strong></td>
+        <td class="text-center"><!----><div ng-if="!$root.isGreyhoundRace" name="runner-id" class="horse-number-sign" ng-style="{'background-color': runner.saddleColor}" style="background-color: rgb(65, 55, 51);"><span class="horse-number-label" ng-style="{'color': runner.numberColor}" ng-bind="runner.runnerNumber || runner.bettingInterestNumber" style="color: rgb(255, 255, 255);">13</span></div><!----><!----></td>
+        <td class="text-left"><strong class="h5 horse-name" ng-bind="runner.runnerName">Power Of Song</strong></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.winPayoff)"></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.placePayoff)"></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.showPayoff)">$3.00</td>
+    </tr><!----><!----><!---->
+    <tr class="runner" ng-repeat="runner in raceResultsCtrl.raceResults.runners track by $index" ng-if="!raceResultsCtrl.hideResults">
+        <td class="text-center"><strong ng-bind="runner.finishPosition | ordinalNumberString">4th:</strong></td>
+        <td class="text-center"><!----><div ng-if="!$root.isGreyhoundRace" name="runner-id" class="horse-number-sign" ng-style="{'background-color': runner.saddleColor}" style="background-color: rgb(28, 91, 27);"><span class="horse-number-label" ng-style="{'color': runner.numberColor}" ng-bind="runner.runnerNumber || runner.bettingInterestNumber" style="color: rgb(255, 255, 255);">5</span></div><!----><!----></td>
+        <td class="text-left"><strong class="h5 horse-name" ng-bind="runner.runnerName">Pacadow</strong></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.winPayoff)"></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.placePayoff)"></td>
+        <td class="text-center" ng-bind="raceResultsCtrl.formatPayoffValue(runner.showPayoff)"></td>
+    </tr><!----><!----><!---->
+</tbody>

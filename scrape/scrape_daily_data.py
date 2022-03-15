@@ -1,4 +1,11 @@
-#https://medium.com/swlh/introduction-to-selenium-create-a-web-bot-with-python-cd59a741fdae
+# https://medium.com/swlh/introduction-to-selenium-create-a-web-bot-with-python-cd59a741fdae
+
+"""
+TODO:
+convert html to csv and save that instead
+test all get_x()
+use webdriver wait instead of time.sleep() https://stackoverflow.com/questions/56119289/element-not-interactable-selenium
+"""
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -24,6 +31,15 @@ def safe_find(browser, by, value, num_results, retries=1, delay=2):
         print("Retrying for value", value)
     return None
 
+def login(browser):
+    browser.find_element(by=By.CLASS_NAME, value='tvg-btn-secondary-alt-1lkym').click()
+
+    fields = browser.find_elements(by=By.CLASS_NAME, value='styled-components-sc-vsf6p0-0')
+    fields[0].send_keys(config.USERNAME)
+    fields[1].send_keys(config.PASSWORD)
+    browser.find_element(by=By.ID, value='stateSelector').send_keys(config.STATE)
+    browser.find_element(by=By.CLASS_NAME, value='default-styled-sc-1xv0x-0.RJxHr.styled-components__ButtonComp-sc-a6y9jp-0.iPDLvC').click()
+
 def setup():
     today = date.today()
     date_string = today.strftime("%Y-%m-%d")
@@ -44,14 +60,8 @@ def setup():
     # Refresh the page to bypass the promotion popup
     browser.refresh()
 
-    browser.find_element(by=By.CLASS_NAME, value='tvg-btn-secondary-alt-1lkym').click()
-
-    fields = browser.find_elements(by=By.CLASS_NAME, value='styled-components-sc-vsf6p0-0')
-    fields[0].send_keys(config.USERNAME)
-    fields[1].send_keys(config.PASSWORD)
-    browser.find_element(by=By.ID, value='stateSelector').send_keys(config.STATE)
-    browser.find_element(by=By.CLASS_NAME, value='default-styled-sc-1xv0x-0.RJxHr.styled-components__ButtonComp-sc-a6y9jp-0.iPDLvC').click()
-
+    # login(browser) # uncomment later
+    
     return browser, date_path
 
 def check_and_close_login_popup(browser):
@@ -134,7 +144,7 @@ def get_race(browser, race_path):
 def get_page(browser, date_path, page_idx):
     items = safe_find(browser, By.CLASS_NAME, 'replay-list__item', num_results=None, retries=3)
     if not items:
-        print('Error finding results. Stopping the program.')
+        print(f'Error finding results on page {page_idx}. Skipping to the next page.')
         return
     
     item_idx = 0
@@ -167,39 +177,21 @@ def get_page(browser, date_path, page_idx):
 def main():
     browser, date_path = setup()
     # 15 seconds for bot check
-    time.sleep(20)
-
-    items = safe_find(browser, By.CLASS_NAME, 'replay-list__item', num_results=None, retries=3)
-    if not items:
-        print('Error finding results. Stopping the program.')
-        return
+    # time.sleep(20) # uncomment later
+    page_idx = 0
     
-    item_idx = 0
-    while item_idx < len(items):
-        race_path = f'{date_path}/race_{item_idx}'
-        if not os.path.exists(race_path):
-            os.makedirs(race_path)
-        
-        buttons = safe_find(browser, By.LINK_TEXT, 'Go to Program Page', num_results=1, retries=1)
-        if buttons:
-            buttons[0].click()
-            get_race(browser, race_path)
-            browser.back()
-        else:
-            print('Error finding button to program page. Skipping race #' + str(item_idx))
-        
-        item_idx += 1
+    has_next = True
+    while has_next:
+        # get_page(browser, date_path, page_idx) # uncomment later
+        page_idx += 1
 
-        new_items = safe_find(browser, By.CLASS_NAME, 'replay-list__item', num_results=None, retries=3)
-        if not new_items:
-            print('Error find results when returning to results page.')
-            break
+        next_pages = safe_find(browser, By.CSS_SELECTOR, "a[ng-click='selectPage(page + 1, $event)']:not([disabled='disabled'])", num_results=1, retries=1) # https://devqa.io/selenium-css-selectors/
+        if not next_pages:
+            print(f'Cannot find next page ({page_idx}). Exiting...')
+            has_next = False
+            return
+        next_pages[0].click()
 
-        if item_idx < len(new_items):
-            time.sleep(2)
-            new_items[item_idx].click()
-        else:
-            break
     browser.close()
 
 if __name__ == '__main__':
