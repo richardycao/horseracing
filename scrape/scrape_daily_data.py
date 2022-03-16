@@ -2,7 +2,6 @@
 
 """
 TODO:
-include the time of the race in the data - can get this from the results list.
 use webdriver wait instead of time.sleep() https://stackoverflow.com/questions/56119289/element-not-interactable-selenium
 """
 
@@ -111,7 +110,7 @@ def get_race_path(browser, item_idx):
     return rp
 
 def get_details(browser, race_path):
-    details = safe_find(browser, By.CLASS_NAME, 'pp-header_race-details_list', num_results=1, retries=1)
+    details = safe_find(browser, By.CLASS_NAME, 'pp-header_race-details_list', num_results=1, retries=3)
     if not details:
         print('Error finding details. Skipping this section for path:', race_path)
         return
