@@ -2,6 +2,7 @@
 
 """
 TODO:
+parallelize by opening multiple tabs at once.
 use webdriver wait instead of time.sleep() https://stackoverflow.com/questions/56119289/element-not-interactable-selenium
 """
 
@@ -9,6 +10,7 @@ from tkinter import N
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
@@ -21,9 +23,8 @@ import pandas as pd
 
 import config
 
-def safe_find(browser, by, value, num_results, retries=1, delay=1):
+def safe_find(browser, by, value, num_results, retries=2, delay=1):
     for r in range(retries + 1):
-        time.sleep(delay)
         elements = browser.find_elements(by=by, value=value)
         
         if len(elements) > 0:
@@ -31,6 +32,7 @@ def safe_find(browser, by, value, num_results, retries=1, delay=1):
                 return elements[:num_results]
             return elements
         print("Retrying for value", value)
+        time.sleep(delay)
     return None
 
 def find_value_in_html(html, left, right, width=50):
@@ -106,7 +108,7 @@ def get_race_path(browser, item_idx):
     # distance = find_value_in_html(html, left='<span class="replay-list__cell col-distance" qa-label="raceReplay-distance">', right='</span>')
     # breed = find_value_in_html(html, left='<span class="replay-list__cell col-breed" qa-label="raceReplay-breed">', right='</span>')
 
-    rp = '_'.join(dt[0].split(' ')[1:]) + '_' + track[0].replace(' ', '_') + '_' + racenum[0]
+    rp = '_'.join([_ for _ in reversed(dt[0].split(' ')[1:])]) + '_' + track[0].replace(' ', '_') + '_' + racenum[0]
     return rp
 
 def get_details(browser, race_path):
@@ -297,6 +299,8 @@ def get_page(browser, date_path, page_idx):
     if not items:
         print(f'Error finding results on page {page_idx}. Skipping to the next page.')
         return
+
+    actions = ActionChains(browser)
     
     item_idx = 0
     while item_idx < len(items):
@@ -308,10 +312,9 @@ def get_page(browser, date_path, page_idx):
             
                 buttons = safe_find(browser, By.CLASS_NAME, 'bt-button.bt-tertiary.bt-program-page-redirect', num_results=1, retries=1)
                 if buttons:
-                    time.sleep(1)
-                    
+                    # time.sleep(1)
                     btn_html = buttons[0].get_attribute('outerHTML')
-                    btn_path = find_value_in_html(btn_html, left='href="', right='" ng-click', width=70)
+                    btn_path = find_value_in_html(btn_html, left='href="', right='" ng-click', width=100)
                     btn_url = f'https://www.tvg.com{btn_path[0]}'
                     browser.execute_script(f"window.open('{btn_url}');")
                     browser.switch_to.window(browser.window_handles[1])
@@ -333,7 +336,8 @@ def get_page(browser, date_path, page_idx):
             break
 
         if item_idx < len(new_items):
-            time.sleep(1)
+            # actions = ActionChains(browser)
+            actions.move_to_element(new_items[item_idx]).perform()
             new_items[item_idx].click()
         else:
             break
@@ -354,12 +358,14 @@ def main():
             has_next = False
             return
         next_pages[0].click()
-        time.sleep(2)
-        browser.find_element_by_tag_name('body').send_keys(Keys.CONTROL + Keys.HOME)
+        # time.sleep(2)
+        # browser.find_element_by_tag_name('body').send_keys(Keys.CONTROL + Keys.HOME)
         new_items = safe_find(browser, By.CLASS_NAME, 'replay-list__item-line', num_results=None, retries=3)
         if not new_items:
             print('Error find results when returning to results page. Stopping now.')
             break
+        actions = ActionChains(browser)
+        actions.move_to_element(new_items[0]).perform()
         new_items[0].click()
 
     browser.close()
