@@ -3,7 +3,20 @@ from os.path import isfile, join
 import pandas as pd
 from tqdm import tqdm
 from io import StringIO
-from csv import writer 
+from csv import writer
+import datetime as dt
+
+start_date = dt.datetime(2022,3,21,0,0,0)
+end_date = dt.datetime(2022,3,23,0,0,0)
+
+#################################
+
+def time_in_range(start, end, x):
+    """Return true if x is in the range [start, end]"""
+    if start <= end:
+        return start <= x <= end
+    else:
+        return start <= x or x <= end
 
 per_horse_columns = [
     'horse_number','runner_odds','morning_odds','horse_name','horse_age','horse_gender','horse_siredam','trainer',
@@ -29,7 +42,8 @@ csv_writer.writerow(csv_columns_row)
 
 races = []
 for d in dates:
-    races.extend([f'{path}/{d}/{r}' for r in listdir(f'{path}/{d}') if not isfile(join(f'{path}/{d}', r))])
+    if time_in_range(start_date, end_date, dt.datetime.strptime(d, "%Y-%m-%d")):
+        races.extend([f'{path}/{d}/{r}' for r in listdir(f'{path}/{d}') if not isfile(join(f'{path}/{d}', r))])
 
 for r in tqdm(races):
     csvs = [c for c in listdir(r) if isfile(join(r, c))]
@@ -95,4 +109,4 @@ for r in tqdm(races):
                 csv_writer.writerow(row)
 output.seek(0)
 df = pd.read_csv(output)
-df.to_csv('data.csv')
+df.to_csv('raw_test_data.csv', index=False)

@@ -1,2 +1,5 @@
 **config**
 **scrape/results/**
+**.DS_Store**
+**.csv**
+**.joblib**
