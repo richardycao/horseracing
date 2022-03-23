@@ -6,7 +6,7 @@ parallelize by opening multiple tabs at once.
 use webdriver wait instead of time.sleep() https://stackoverflow.com/questions/56119289/element-not-interactable-selenium
 """
 
-from tkinter import N
+# from tkinter import N
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys

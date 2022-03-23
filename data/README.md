@@ -1,17 +1,27 @@
-`create_df.ipynb` is for experimentation. All of the important code has been copied to `create_df.py`
 
-run `create_df.py` to create a new dataframe (`raw_data.csv`) from all the races in `../scrape/results/`.
+Step 1: Create raw data.
+Run `python3 create_raw_data.py raw_data.csv 2022-03-15 2022-03-22`. args: output_file, start_date, end_date (start and end dates are inclusive)
 
-run `update_df.py` to append to an existing data csv with races from specific days.
-- currently, data.csv contains samples from 2022-03-15 to 2022-03-18 ~1:00 PM.
+Step 2: Clean data into X and y.
+Run `python3 create_train_data.py raw_data.csv X.csv y.csv`. args: input_file, X csv, y csv.
 
-run `preprocess_raw_data.py` to create `X.csv` and `y.csv` from `raw_data.csv`.
+Step 3: Train a model on the training data.
+Run `python3 create_model.py X.csv y.csv rf_model.joblib`. args: X csv, y csv, output model file.
 
-run `train_model.py` to create `rf_model.joblib` from `X.csv` and `y.csv`.
+Step 4: Use the model to predict winners of individuals races.
+Run `python3 predict_races.py rf_model.joblib 2022-03-22 2022-03-22`. args: model file, start_date, end_date (start and end dates are inclusive)
 
+
+Only bet on races with certain odds. Only bet on races up to a certain number of horses.
+- observe the distribution of number of horses per race, and the distribution of odds for correctly guessed races, wrong guess races, and all races.
+- also show my winrate depending horses in race.
+- maybe include odds in train data.
+- look into crowdsourced league worlds rankings. softmax.
 ===================
 
 Plan:
+
+I need to know how often I predict the winning horse, not my average win rate in 1v1s.
 
 inference:
 `create_df.py` is good for creating a mixed dataset for training. But it's not good if I want to do inference per-race. Inference should draw directly from `scrape/results`. It creates a new df of pairs for each file, preprocesses it normally without shuffle, then runs inference. At the end, it matches up the winners between horses and figures out the rankings.

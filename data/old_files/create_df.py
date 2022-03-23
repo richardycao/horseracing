@@ -33,7 +33,7 @@ csv_columns_row = [
     *horse1_cols, *horse2_cols, 'result'
 ]
 
-path = '../scrape/results'
+path = '../../scrape/results'
 dates = [f for f in listdir(path) if not isfile(join(path, f))]
 output = StringIO()
 csv_writer = writer(output)
