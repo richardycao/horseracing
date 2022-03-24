@@ -1,27 +1,38 @@
 
 Step 1: Create raw data.
 Run `python3 create_raw_data.py raw_data.csv 2022-03-15 2022-03-22`. args: output_file, start_date, end_date (start and end dates are inclusive)
+Or to update raw data, run `python3 update_raw_data.py raw_data_2.csv 2022-03-15 2022-03-15`
 
 Step 2: Clean data into X and y.
-Run `python3 create_train_data.py raw_data.csv X.csv y.csv`. args: input_file, X csv, y csv.
+Run `python3 create_train_data.py raw_data.csv X.csv y.csv avgs.csv`. args: input_file, X csv, y csv, output averages file
 
 Step 3: Train a model on the training data.
-Run `python3 create_model.py X.csv y.csv rf_model.joblib`. args: X csv, y csv, output model file.
+Run `python3 create_model.py X.csv y.csv lgb.pkl`. args: X csv, y csv, output model file.
 
 Step 4: Use the model to predict winners of individuals races.
-Run `python3 predict_races.py rf_model.joblib 2022-03-22 2022-03-22`. args: model file, start_date, end_date (start and end dates are inclusive)
+Run `python3 predict_races.py lgb.pkl 2022-03-23 2022-03-23 avgs.csv observations.csv`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file
+
+*** Do not shuffle data during training ***
+Validation data needs to come from different races than training data comes from.
+
+number 1 priority:
+- better data preprocessing.
+- optimize the model since it's not profitable yet.
+- standardize the units of each column.
+
+TODO:
+- include odds in train data. odds measures public sentiment. do I want to include that? I can try.
+- look into crowdsourced league worlds rankings. softmax: https://www.pro-football-reference.com/blog/indexa828.html?p=171
+
+set up efficient train-val.
+1. train a neural network on 1, val on 2. train on 1 and 2 (continue training the previous model on 2), val on 3. continue train on 3, val on 4.
+2. track the f1 score after each step.
 
 
-Only bet on races with certain odds. Only bet on races up to a certain number of horses.
-- observe the distribution of number of horses per race, and the distribution of odds for correctly guessed races, wrong guess races, and all races.
-- also show my winrate depending horses in race.
-- maybe include odds in train data.
-- look into crowdsourced league worlds rankings. softmax.
+make "horse number" into a string since it can be 1A, 2A, etc. 
 ===================
 
 Plan:
-
-I need to know how often I predict the winning horse, not my average win rate in 1v1s.
 
 inference:
 `create_df.py` is good for creating a mixed dataset for training. But it's not good if I want to do inference per-race. Inference should draw directly from `scrape/results`. It creates a new df of pairs for each file, preprocesses it normally without shuffle, then runs inference. At the end, it matches up the winners between horses and figures out the rankings.

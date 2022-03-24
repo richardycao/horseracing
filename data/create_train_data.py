@@ -2,8 +2,8 @@ import sys
 import pandas as pd
 import utils
 
-def main(input_file, X_csv, y_csv):
-    data = pd.read_csv(input_file)
+def main(input_file, X_csv, y_csv, avgs):
+    data = pd.read_csv(input_file, low_memory=False)
 
     X, y = utils.preprocess_dataset(data)
 
@@ -11,7 +11,8 @@ def main(input_file, X_csv, y_csv):
     print(y.shape)
     X.to_csv(X_csv, index=False)
     y.to_csv(y_csv, index=False)
+    pd.DataFrame([X.mean(axis=0)]).to_csv(avgs, index=False)
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    main(args[0], args[1], args[2])
+    main(args[0], args[1], args[2], args[3])

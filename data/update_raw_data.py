@@ -14,14 +14,8 @@ class CreateRawData:
         self.start_date = dt.datetime.strptime(start_str, "%Y-%m-%d")
         self.end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
 
-        csv_columns_row = utils.get_columns()
-
         path = '../scrape/results'
         dates = [f for f in listdir(path) if not isfile(join(path, f))]
-        self.output = StringIO()
-        self.csv_writer = writer(self.output)
-
-        self.csv_writer.writerow(csv_columns_row)
 
         self.races = []
         for d in dates:
@@ -33,12 +27,11 @@ class CreateRawData:
         def on_row(row):
             self.csv_writer.writerow(row)
 
-        for r in tqdm(self.races):
-            utils.get_race_data(r, on_row)
+        with open(self.output_file, 'a') as f:
+            self.csv_writer = writer(f)
 
-        self.output.seek(0)
-        df = pd.read_csv(self.output)
-        df.to_csv(self.output_file, index=False)
+            for r in tqdm(self.races):
+                utils.get_race_data(r, on_row)
 
 def main(output_file, start, end):
     c = CreateRawData(output_file, start, end)

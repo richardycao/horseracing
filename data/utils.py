@@ -5,6 +5,28 @@ import numpy as np
 import datetime as dt
 import re
 
+def get_details_df(r):
+    return pd.read_csv(f'{r}/details.csv')
+def get_results_df(r):
+    results = pd.read_csv(f'{r}/results.csv')
+    results['horse number'] = results['horse number'].apply(lambda x: to_str(x)).astype(str)
+    return results
+def get_racecard_left_df(r):
+    racecard_left = pd.read_csv(f'{r}/racecard_left.csv')
+    racecard_left = racecard_left[racecard_left['runner odds'] != '-']
+    racecard_left['number'] = racecard_left['number'].apply(lambda x: to_str(x)).astype(str)
+    return racecard_left
+def get_racecard_summ_df(r):
+    return pd.read_csv(f'{r}/racecard_summ.csv')
+def get_racecard_snap_df(r):
+    return pd.read_csv(f'{r}/racecard_snap.csv')
+def get_racecard_spee_df(r):
+    return pd.read_csv(f'{r}/racecard_spee.csv')
+def get_racecard_pace_df(r):
+    return pd.read_csv(f'{r}/racecard_pace.csv')
+def get_racecard_jock_df(r):
+    return pd.read_csv(f'{r}/racecard_jock.csv')
+
 def get_columns():
     per_horse_columns = [
         'horse_number','runner_odds','morning_odds','horse_name','horse_age','horse_gender','horse_siredam','trainer',
@@ -28,7 +50,19 @@ def time_in_range(start, end, x):
     else:
         return start <= x or x <= end
 
-def get_race_winner(r):
+def to_str(x):
+    if isinstance(x, int):
+        return str(x)
+    if isinstance(x, float):
+        return str(int(x))
+    if isinstance(x, str):
+        return str(x)
+    if isinstance(x, np.int64):
+        return str(x)
+    return str(x)
+
+# gets group stats of a race
+def get_race_stats(r):
     csvs = [c for c in listdir(r) if isfile(join(r, c))]
 
     # Skips races with missing files
@@ -40,9 +74,21 @@ def get_race_winner(r):
     if missing_csv:
         return
 
-    results = pd.read_csv(f'{r}/results.csv')
-    return results['horse number'][0]
+    stats = {}
+    results = get_results_df(r)
+    left = get_racecard_left_df(r)
+    
+    stats['winner'] = results['horse number'][0]
+    stats['winner_odds'] = left[left['number'] == stats['winner']]['runner odds'].iloc[0]
+    stats['num_horses'] = left.shape[0]
 
+    return stats
+
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=0)
+
+# converts a race into 1v1s
 def get_race_data(r, on_row):
     csvs = [c for c in listdir(r) if isfile(join(r, c))]
 
@@ -60,11 +106,11 @@ def get_race_data(r, on_row):
     datetime_row = [r.split('/')[3]] + [' '.join([p for p in reversed(race_parts[:2])])]
 
     # Get details
-    details = pd.read_csv(f'{r}/details.csv')
+    details = get_details_df(r)
     details_row = details.iloc[0,1:].values.flatten()
 
     # Get results
-    results = pd.read_csv(f'{r}/results.csv')
+    results = get_results_df(r)
     ranked_horse_numbers = set(results['horse number'].values)
 
     # Racecard
@@ -73,8 +119,7 @@ def get_race_data(r, on_row):
     # 3. For each pair, check that at least 1 horse is present in results_horsenumber.
     # 4. For each horse in the pair, get all the values in that list and put it into a row.
     # 5. For each pair, combine race_time_row, details_row, and pair_row into 1 sample in df.
-    racecard_left = pd.read_csv(f'{r}/racecard_left.csv')
-    racecard_left = racecard_left[racecard_left['runner odds'] != '-']
+    racecard_left = get_racecard_left_df(r)
     num_horses = racecard_left.shape[0]
     # for horse i and horse j
     for i in range(num_horses):
@@ -83,11 +128,11 @@ def get_race_data(r, on_row):
             j_num = racecard_left.iloc[j]['number']
             if i != j and (i_num in ranked_horse_numbers or 
                            j_num in ranked_horse_numbers):
-                racecard_summ = pd.read_csv(f'{r}/racecard_summ.csv')
-                racecard_snap = pd.read_csv(f'{r}/racecard_snap.csv')
-                racecard_spee = pd.read_csv(f'{r}/racecard_spee.csv')
-                racecard_pace = pd.read_csv(f'{r}/racecard_pace.csv')
-                racecard_jock = pd.read_csv(f'{r}/racecard_jock.csv')
+                racecard_summ = get_racecard_summ_df(r)
+                racecard_snap = get_racecard_snap_df(r)
+                racecard_spee = get_racecard_spee_df(r)
+                racecard_pace = get_racecard_pace_df(r)
+                racecard_jock = get_racecard_jock_df(r)
 
                 i_row = pd.concat([racecard_left.iloc[i,1:], racecard_summ.iloc[i,1:], racecard_snap.iloc[i,1:], racecard_spee.iloc[i,1:], racecard_pace.iloc[i,1:], racecard_jock.iloc[i,1:]])
                 j_row = pd.concat([racecard_left.iloc[j,1:], racecard_summ.iloc[j,1:], racecard_snap.iloc[j,1:], racecard_spee.iloc[j,1:], racecard_pace.iloc[j,1:], racecard_jock.iloc[j,1:]])
