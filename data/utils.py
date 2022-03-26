@@ -26,6 +26,17 @@ def get_racecard_pace_df(r):
     return pd.read_csv(f'{r}/racecard_pace.csv')
 def get_racecard_jock_df(r):
     return pd.read_csv(f'{r}/racecard_jock.csv')
+def get_pools_df(r):
+    def clean_pool_vals(x):
+        if isinstance(x, int) or isinstance(x, float) or isinstance(x, np.int64):
+            return int(x)
+        elif isinstance(x, str):
+            return int(x.replace(',',''))
+
+    pools = pd.read_csv(f'{r}/pools.csv')
+    for c in pools.columns:
+        pools[c] = pools[c].apply(clean_pool_vals)
+    return pools
 
 def get_columns():
     per_horse_columns = [
@@ -61,26 +72,55 @@ def to_str(x):
         return str(x)
     return str(x)
 
+def eval_frac(x):
+    if isinstance(x, int) or isinstance(x, float) or isinstance(x, np.int64):
+        return float(x)
+    if "/" in x:
+        parts = x.split("/")
+        if float(parts[1]) == 0:
+            return 0
+        return float(parts[0]) / float(parts[1])
+    return float(x)
+
+def normalize(x, u, s):
+    return (x - u)/s
+
+def get_race_date_time(r):
+    race_parts = r.split('/')[-1].split('_')
+    d = r.split('/')[3]
+    t = ' '.join([p for p in reversed(race_parts[:2])])
+    return d, t
+
 # gets group stats of a race
 def get_race_stats(r):
-    csvs = [c for c in listdir(r) if isfile(join(r, c))]
+    # csvs = [c for c in listdir(r) if isfile(join(r, c))]
 
-    # Skips races with missing files
-    missing_csv = False
-    for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
-              'racecard_pace','racecard_jock']:
-        if f'{n}.csv' not in csvs:
-            missing_csv = True
-    if missing_csv:
-        return
+    # # Skips races with missing files
+    # missing_csv = False
+    # for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
+    #           'racecard_pace','racecard_jock','pools']:
+    #     if f'{n}.csv' not in csvs:
+    #         missing_csv = True
+    # if missing_csv:
+    #     return
 
     stats = {}
     results = get_results_df(r)
     left = get_racecard_left_df(r)
-    
+    pools = get_pools_df(r)
+    d, t = get_race_date_time(r)
+
+    stats['date'] = d
+    stats['time'] = t
     stats['winner'] = results['horse number'][0]
     stats['winner_odds'] = left[left['number'] == stats['winner']]['runner odds'].iloc[0]
     stats['num_horses'] = left.shape[0]
+    stats['pool_size'] = pools['win'].sum()
+
+    # pool_idx = left[left['number'] == stats['winner']].index[0]
+    # stats['winner_pool_size'] = pools.iloc[pool_idx,:]['win']
+
+    stats['winner_pool_size'] = pools['win'][(int(stats['winner']) if stats['winner'][-1].isdigit() else int(stats['winner'][:-1])) - 1]
 
     return stats
 
@@ -89,21 +129,21 @@ def softmax(x):
     return e_x / e_x.sum(axis=0)
 
 # converts a race into 1v1s
-def get_race_data(r, on_row):
+def get_race_data(r, on_row, mode="train"):
     csvs = [c for c in listdir(r) if isfile(join(r, c))]
 
     # Skips races with missing files
     missing_csv = False
     for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
-              'racecard_pace','racecard_jock']:
+              'racecard_pace','racecard_jock','pools']:
         if f'{n}.csv' not in csvs:
             missing_csv = True
     if missing_csv:
         return
 
     # Get race time
-    race_parts = r.split('/')[-1].split('_')
-    datetime_row = [r.split('/')[3]] + [' '.join([p for p in reversed(race_parts[:2])])]
+    d, t = get_race_date_time(r)
+    datetime_row = [d, t]
 
     # Get details
     details = get_details_df(r)
@@ -121,13 +161,14 @@ def get_race_data(r, on_row):
     # 5. For each pair, combine race_time_row, details_row, and pair_row into 1 sample in df.
     racecard_left = get_racecard_left_df(r)
     num_horses = racecard_left.shape[0]
+    if num_horses != len(ranked_horse_numbers) and mode == 'test':
+        return
     # for horse i and horse j
     for i in range(num_horses):
         for j in range(num_horses):
             i_num = racecard_left.iloc[i]['number']
             j_num = racecard_left.iloc[j]['number']
-            if i != j and (i_num in ranked_horse_numbers or 
-                           j_num in ranked_horse_numbers):
+            if i != j and ((i_num in ranked_horse_numbers or j_num in ranked_horse_numbers) if mode == 'train' else True):
                 racecard_summ = get_racecard_summ_df(r)
                 racecard_snap = get_racecard_snap_df(r)
                 racecard_spee = get_racecard_spee_df(r)
@@ -171,7 +212,7 @@ def preprocess_dataset(data):
         return np.cos(radians), np.sin(radians)
     X['time_cos'] = date_time.apply(lambda x: mins_to_cycle(x.hour*60 + x.minute)[0])
     X['time_sin'] = date_time.apply(lambda x: mins_to_cycle(x.hour*60 + x.minute)[1])
-    X.drop(['date','time'], axis=1, inplace=True)
+    X = X.drop(['date','time'], axis=1)
 
     # race_distance - standardize units to meters
     def conv_dist(dist):
@@ -183,53 +224,41 @@ def preprocess_dataset(data):
             if k in dist:
                 return float(dist[:-len(k)]) * v
     X['race_distance_meters'] = X['race_distance'].apply(lambda x: conv_dist(x))
-    X.drop(['race_distance'], axis=1, inplace=True)
+    X = X.drop(['race_distance'], axis=1)
 
     # race_type - one-hot encode
     def fixed_one_hot(df, column, categories):
         for c in categories:
             df[c] = (df[column] == c)*1
     fixed_one_hot(X, 'race_type', ['Thoroughbred', 'Harness', 'Mixed', 'QuarterHorse', 'Arabian'])
-    X.drop(['race_type'], axis=1, inplace=True)
+    X = X.drop(['race_type'], axis=1)
 
     # race_class (TODO)
-    X.drop(['race_class'], axis=1, inplace=True)
+    X = X.drop(['race_class'], axis=1)
 
     # surface_name - one-hot encode
     fixed_one_hot(X, 'surface_name', ['Turf', 'Dirt', 'Synthetic', 'Downhill Turf', 'Steeplechase'])
-    X.drop(['surface_name'], axis=1, inplace=True)
+    X = X.drop(['surface_name'], axis=1)
 
     # default_condition (TODO - see if there's a relationship e.g. good > good to soft > soft)
-    X.drop(['default_condition'], axis=1, inplace=True)
+    X = X.drop(['default_condition'], axis=1)
 
     for i in ['1','2']:
-        # horse number (TODO - normalize somehow. also has ints and strings.)
-        X.drop(['horse_number_'+i], axis=1, inplace=True)
+        # horse number - drop
+        X = X.drop(['horse_number_'+i], axis=1)
 
-        # runner odds - drop
-        X.drop(['runner_odds_'+i], axis=1, inplace=True)
+        # runner odds - convert to decimal
+        # X['runner_odds_'+i] = X['runner_odds_'+i].apply(lambda x: eval_frac(x))
+        X = X.drop(['runner_odds_'+i], axis=1)
 
-        # morning odds - drop
-        X.drop(['morning_odds_'+i], axis=1, inplace=True)
+        # morning odds - convert to decimal
+        # X['morning_odds_'+i] = X['morning_odds_'+i].apply(lambda x: eval_frac(x))
+        X = X.drop(['morning_odds_'+i], axis=1)
 
-        # horse name (TODO)
-        X.drop(['horse_name_'+i], axis=1, inplace=True)
+        # horse name - drop
+        X = X.drop(['horse_name_'+i], axis=1)
 
-        # horse age - as is
-
-        # horse gender (TODO - a bunch of different "genders")
-        X.drop(['horse_gender_'+i], axis=1, inplace=True)
-
-        # horse siredam
-        X.drop(['horse_siredam_'+i], axis=1, inplace=True)
-
-        # horse med - drop
-        X.drop(['horse_med_'+i], axis=1, inplace=True)
-
-        # horse trainer (TODO)
-        X.drop(['trainer_'+i], axis=1, inplace=True)
-
-        # horse weight - convert to int and fill na with mean.
+        # horse age
         def str_is_float(x):
             try:
                 float(x)
@@ -238,58 +267,104 @@ def preprocess_dataset(data):
                 return False
         def str_to_float(x):
             return float(x) if str_is_float(x) else np.nan
-        weight_ints = X['horse_weight_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['jockey_weight_'+i] = weight_ints.fillna(weight_ints.mean())
-        X.drop(['horse_weight_'+i], axis=1, inplace=True)
+        def stf(x):
+            return str_to_float((x if isinstance(x, str) else str(x)).replace(' ',''))
+        
+        # print(X['horse_age_'+i])
+        # print(X['horse_age_'+i].apply(stf).apply(lambda x: np.log(x)))
+        # print(normalize(X['horse_age_'+i].apply(stf).apply(lambda x: np.log(x)), 1.611, 0.3770))
+        X['horse_age_'+i] = normalize(np.log(X['horse_age_'+i].apply(stf)), 1.611, 0.3770).fillna(0)
+
+        # horse gender - a bunch of different "genders" as categories
+        fixed_one_hot(X, 'horse_gender_'+i, ['G', 'M', 'F', 'H', 'C', 'R', 'S', 'B'])
+        X = X.drop(['horse_gender_'+i], axis=1)
+
+        # horse siredam
+        X = X.drop(['horse_siredam_'+i], axis=1)
+
+        # horse med - drop
+        X = X.drop(['horse_med_'+i], axis=1)
+
+        # horse trainer (TODO)
+        X = X.drop(['trainer_'+i], axis=1)
+
+        # horse weight - convert to int. log everything to reduce the positive skew.
+        #                normalize it with hardcoded mean and std. fill na with 0.    
+        # weight_ints = X['horse_weight_'+i].apply(lambda x: stf(x))
+        X['jockey_weight_'+i] = normalize(np.log(X['horse_weight_'+i].apply(stf)), 4.856, 0.09278).fillna(0)
+        X = X.drop(['horse_weight_'+i], axis=1)
 
         # horse jockey (TODO)
-        X.drop(['jockey_'+i], axis=1, inplace=True)
+        X = X.drop(['jockey_'+i], axis=1)
 
-        # horse power rating - convert to int and fill na with mean.
-        power_ints = X['horse_power_rating_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_power_rating_'+i] = power_ints.fillna(power_ints.mean())
+        # horse power rating - convert to int. square everything to reduce the negative skew.
+        #                      normalize it with hardcoded mean and std. fill na with 0.
+        # power_ints = X['horse_power_rating_'+i].apply(lambda x: stf(x))
+        X['horse_power_rating_'+i] = normalize(np.power(X['horse_power_rating_'+i].apply(stf), 2), 5016, 1796).fillna(0)
 
-        # horse wins/starts (TODO - handle confidence with increasing number of starts)
-        X.drop(['horse_wins/starts_'+i], axis=1, inplace=True)
+        # horse wins/starts - convert to decimal and get fraction parts. various types of skew reduction.
+        #                     normalize it with hardcoded mean and std. fill na with 0.
+        def frac_top(x):
+            parts = x.replace(' ','').split('/')
+            return float(parts[0])
+        def frac_bot(x):
+            parts = x.replace(' ','').split('/')
+            return float(parts[1])
+        X['horse_winrate_'+i] = normalize(np.power(X['horse_wins/starts_'+i].apply(lambda x: eval_frac(x)), 1/3), 0.1889, 0.2712).fillna(0)
+        X['horse_wins'+i] = normalize(np.power(X['horse_wins/starts_'+i].apply(lambda x: frac_top(x)), 1/3), 0.6365, 0.9833).fillna(0)
+        X['horse_starts'+i] = normalize(np.power(X['horse_wins/starts_'+i].apply(lambda x: frac_bot(x)), 1/3), 1.317, 1.802).fillna(0)
+        X = X.drop(['horse_wins/starts_'+i], axis=1)
 
-        # horse days off - convert to int and fill na with mean.
-        days_off_ints = X['horse_days_off_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_days_off_'+i] = days_off_ints.fillna(days_off_ints.mean())
+        # horse days off - convert to int. log transform to reduce positive skew.
+        #                  normalize with hardcoded mean and std. fill na with 0.
+        # days_off_ints = X['horse_days_off_'+i].apply(lambda x: stf(x))
+        X['horse_days_off_'+i] = normalize(np.log(X['horse_days_off_'+i].apply(stf)), 2.884, 1.020).fillna(0)
 
-        # avg speed - convert to int and fill na with mean.
-        avg_speed_ints = X['horse_avg_speed_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_avg_speed_'+i] = avg_speed_ints.fillna(avg_speed_ints.mean())
+        # avg speed - convert to int. square everything to reduce the negative skew.
+        #             normalize it with hardcoded mean and std. fill na with 0.
+        # avg_speed_ints = X['horse_avg_speed_'+i].apply(lambda x: stf(x))
+        X['horse_avg_speed_'+i] = normalize(np.power(X['horse_avg_speed_'+i].apply(stf), 2), 4935, 1986).fillna(0)
 
-        # avg distance - convert to int and fill na with mean.
-        avg_distance_ints = X['horse_avg_distance_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_avg_distance_'+i] = avg_distance_ints.fillna(avg_distance_ints.mean())
+        # avg distance - convert to int. square everything to reduce the negative skew.
+        #                normalize it with hardcoded mean and std. fill na with 0.
+        # avg_distance_ints = X['horse_avg_distance_'+i].apply(lambda x: stf(x))
+        X['horse_avg_distance_'+i] = normalize(np.power(X['horse_avg_distance_'+i].apply(stf), 2), 4242, 2175).fillna(0)
 
-        # high speed - convert to int and fill na with mean.
-        high_speed_ints = X['horse_high_speed_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_high_speed_'+i] = high_speed_ints.fillna(high_speed_ints.mean())
+        # high speed - convert to int. square everything to reduce the negative skew.
+        #              normalize it with hardcoded mean and std. fill na with 0.
+        # high_speed_ints = X['horse_high_speed_'+i].apply(lambda x: stf(x))
+        X['horse_high_speed_'+i] = normalize(np.power(X['horse_high_speed_'+i].apply(stf), 2), 5979, 2074).fillna(0)
 
-        # avg class - convert to int and fill na with mean.
-        avg_class_ints = X['horse_avg_class_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_avg_class_'+i] = avg_class_ints.fillna(avg_class_ints.mean())
+        # avg class - convert to int, normalize, and fill na with 0.
+        # avg_class_ints = X['horse_avg_class_'+i].apply(lambda x: stf(x))
+        X['horse_avg_class_'+i] = normalize(X['horse_avg_class_'+i].apply(stf), 77.11, 10.52).fillna(0)
 
-        # last class - convert to int and fill na with mean.
-        last_class_ints = X['horse_last_class_'+i].apply(lambda x: str_to_float((x if isinstance(x, str) else str(x)).replace(' ','')))
-        X['horse_last_class_'+i] = last_class_ints.fillna(last_class_ints.mean())
+        # last class - convert to int, normalize, and fill na with 0.
+        # last_class_ints = X['horse_last_class_'+i].apply(lambda x: stf(x))
+        X['horse_last_class_'+i] = normalize(X['horse_last_class_'+i].apply(stf), 78.22, 11.47).fillna(0)
 
         # num races - as is
+        
 
-        # early - as is
+        # early - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['early_'+i] = normalize(np.sqrt(X['early_'+i].apply(stf).replace(0, np.nan)).fillna(0), 1.472, 0.4165)
 
-        # middle - as is
+        # middle - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['middle_'+i] = normalize(np.sqrt(X['middle_'+i].apply(stf).replace(0, np.nan)).fillna(0), 2.119, 0.3866)
 
-        # finish - as is
+        # finish - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['finish_'+i] = normalize(np.sqrt(X['finish_'+i].apply(stf).replace(0, np.nan)).fillna(0), 2.086, 0.3503)
 
-        # starts - as is
+        # starts - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['jockey_trainer_starts_'+i] = normalize(np.log(X['jockey_trainer_starts_'+i].apply(stf).replace(0, np.nan)).fillna(0), 2.927, 1.659)
 
-        # 1st - as is
+        # 1st - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['jockey_trainer_1st_'+i] = normalize(np.log(X['jockey_trainer_1st_'+i].apply(stf).replace(0, np.nan)).fillna(0), 1.795, 1.386)
 
-        # 2nd - as is
+        # 2nd - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['jockey_trainer_2nd_'+i] = normalize(np.log(X['jockey_trainer_2nd_'+i].apply(stf).replace(0, np.nan)).fillna(0), 1.733, 1.328)
 
-        # 3rd - as is
+        # 3rd - unskew all nonzero values, leave the zeros as they are. normalize.
+        X['jockey_trainer_3rd_'+i] = normalize(np.log(X['jockey_trainer_3rd_'+i].apply(stf).replace(0, np.nan)).fillna(0), 1.661, 1.303)
 
     return X, y

@@ -34,7 +34,7 @@ class CreateRawData:
             self.csv_writer.writerow(row)
 
         for r in tqdm(self.races):
-            utils.get_race_data(r, on_row)
+            utils.get_race_data(r, on_row, mode='train')
 
         self.output.seek(0)
         df = pd.read_csv(self.output)
