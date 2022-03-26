@@ -113,14 +113,16 @@ def get_race_stats(r):
     stats['date'] = d
     stats['time'] = t
     stats['winner'] = results['horse number'][0]
-    stats['winner_odds'] = left[left['number'] == stats['winner']]['runner odds'].iloc[0]
+    # stats['winner_odds'] = left[left['number'] == stats['winner']]['runner odds'].iloc[0]
     stats['num_horses'] = left.shape[0]
     stats['pool_size'] = pools['win'].sum()
 
     # pool_idx = left[left['number'] == stats['winner']].index[0]
     # stats['winner_pool_size'] = pools.iloc[pool_idx,:]['win']
 
-    stats['winner_pool_size'] = pools['win'][(int(stats['winner']) if stats['winner'][-1].isdigit() else int(stats['winner'][:-1])) - 1]
+    # stats['winner_pool_size'] = pools['win'][(int(stats['winner']) if stats['winner'][-1].isdigit() else int(stats['winner'][:-1])) - 1]
+    stats['numbers'] = left['number'].to_list()
+    stats['pools_i'] = { str(k):v for k,v in zip(range(1,stats['num_horses']),pools['win'].to_list()) }
 
     return stats
 
@@ -162,7 +164,7 @@ def get_race_data(r, on_row, mode="train"):
     racecard_left = get_racecard_left_df(r)
     num_horses = racecard_left.shape[0]
     if num_horses != len(ranked_horse_numbers) and mode == 'test':
-        return
+        return False
     # for horse i and horse j
     for i in range(num_horses):
         for j in range(num_horses):
@@ -191,6 +193,7 @@ def get_race_data(r, on_row, mode="train"):
 
                 row = [*datetime_row, *details_row, *i_row, *j_row, *[y_row]]
                 on_row(row)
+    return True
 
 def preprocess_dataset(data):
     X = data.iloc[:,:-1]
@@ -205,8 +208,8 @@ def preprocess_dataset(data):
     def nth_day_to_cycle(n):
         radians = n*(2*np.pi)/(365.25)
         return np.cos(radians), np.sin(radians)
-    X['date_cos'] = date_time.apply(lambda x: nth_day_to_cycle(date_to_nth_day(x))[0])
-    X['date_sin'] = date_time.apply(lambda x: nth_day_to_cycle(date_to_nth_day(x))[1])
+    # X['date_cos'] = date_time.apply(lambda x: nth_day_to_cycle(date_to_nth_day(x))[0])
+    # X['date_sin'] = date_time.apply(lambda x: nth_day_to_cycle(date_to_nth_day(x))[1])
     def mins_to_cycle(mins):
         radians = mins*(2*np.pi)/(60*24)
         return np.cos(radians), np.sin(radians)
@@ -248,12 +251,12 @@ def preprocess_dataset(data):
         X = X.drop(['horse_number_'+i], axis=1)
 
         # runner odds - convert to decimal
-        # X['runner_odds_'+i] = X['runner_odds_'+i].apply(lambda x: eval_frac(x))
-        X = X.drop(['runner_odds_'+i], axis=1)
+        X['runner_odds_'+i] = X['runner_odds_'+i].apply(lambda x: eval_frac(x))
+        # X = X.drop(['runner_odds_'+i], axis=1)
 
         # morning odds - convert to decimal
-        # X['morning_odds_'+i] = X['morning_odds_'+i].apply(lambda x: eval_frac(x))
-        X = X.drop(['morning_odds_'+i], axis=1)
+        X['morning_odds_'+i] = X['morning_odds_'+i].apply(lambda x: eval_frac(x))
+        # X = X.drop(['morning_odds_'+i], axis=1)
 
         # horse name - drop
         X = X.drop(['horse_name_'+i], axis=1)

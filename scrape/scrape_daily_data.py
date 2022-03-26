@@ -209,6 +209,7 @@ def get_race_card(browser, race_path):
             df.to_csv(f'{race_path}/racecard_summ.csv')
         elif i == 1:
             power_wins_daysoff = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
+            print(power_wins_daysoff)
             df = pd.DataFrame({
                 'power rating': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 0],
                 'wins/starts': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 1],
@@ -316,7 +317,7 @@ def get_page(browser, date_path, page_idx):
                     btn_html = buttons[0].get_attribute('outerHTML')
                     btn_path = find_value_in_html(btn_html, left='href="', right='" ng-click', width=100)
                     btn_url = f'https://www.tvg.com{btn_path[0]}'
-                    browser.execute_script(f"window.open('{btn_url}');")
+                    browser.execute_script(f"window.open(\"{btn_url}\");")
                     browser.switch_to.window(browser.window_handles[1])
                     get_race(browser, race_path)
                     browser.close()

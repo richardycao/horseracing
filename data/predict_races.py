@@ -1,5 +1,4 @@
 import pandas as pd
-from sklearn.metrics import confusion_matrix
 import joblib
 import sys
 import datetime as dt
@@ -34,7 +33,7 @@ class PredictRaces:
 
         self.output = StringIO()
         self.csv_writer = writer(self.output)
-        self.csv_writer.writerow(['date','time','winner','predicted_winner','num_horses','winner_odds', 'confidence','pool_size','winner_pool_size'])
+        self.csv_writer.writerow(['date','time','winner','num_horses','pool_size','scores','pools_i'])
 
         self.required_files = set(['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
                                     'racecard_pace','racecard_jock','pools'])
@@ -43,9 +42,7 @@ class PredictRaces:
         def on_row(row):
             self.df.loc[0 if pd.isnull(self.df.index.max()) else self.df.index.max() + 1] = row
         
-        correct_predictions = 0
         model = joblib.load(self.model_file)
-        # observations = pd.DataFrame(columns=['date','time','winner','predicted_winner','num_horses','winner_odds', 'confidence','pool_size','winner_pool_size'])
         for r in tqdm(self.races):
             csvs = [c for c in listdir(r) if isfile(join(r, c))]
 
@@ -66,7 +63,9 @@ class PredictRaces:
             # predicted_winner = np.random.choice(utils.get_racecard_left_df(r)['number'])
             # confidence = 0
             
-            utils.get_race_data(r, on_row, mode='test')
+            s = utils.get_race_data(r, on_row, mode='test')
+            if not s:
+                continue
 
             horse_pairs = pd.concat([self.df['horse_number_1'], self.df['horse_number_2']], axis=1)
             X, y = utils.preprocess_dataset(self.df)
@@ -88,34 +87,43 @@ class PredictRaces:
                 horse_score = defaultdict(lambda: 1)
                 for i in range(len(preds)):
                     horse_score[utils.to_str(horse_pairs['horse_number_1'][i])] *= preds[i][0]
-                    horse_score[utils.to_str(horse_pairs['horse_number_2'][i])] += preds[i][1]
+                    horse_score[utils.to_str(horse_pairs['horse_number_2'][i])] *= preds[i][1]
             
-            sorted_horse_score = sorted(horse_score.items(), key=lambda x: -x[1])
-            predicted_winner = sorted_horse_score[0][0]
-            confidence = utils.softmax([hw[1] for hw in sorted_horse_score])[0]
+            # sorted_horse_score = sorted(horse_score.items(), key=lambda x: -x[1])
+            # predicted_winner = sorted_horse_score[0][0]
+            # confidence = utils.softmax([hw[1] for hw in sorted_horse_score])[0]
             #####
             
-            winner = race_stats['winner']
-            if winner == predicted_winner:
-                correct_predictions += 1
+            # winner = race_stats['winner']
+            # if winner == predicted_winner:
+            #     correct_predictions += 1
+
+            horse_score = { k:v for k,v in zip(horse_score.keys(), utils.softmax([v for k,v in horse_score.items()])) }
+            # total_score = np.sum([v for k,v in horse_score.items()])
+            # for k in horse_score.keys():
+            #     horse_score[k] /= total_score
+
+            # horse_score = dict(horse_score)
 
             self.csv_writer.writerow([
                 race_stats['date'],
                 race_stats['time'],
-                winner,
-                predicted_winner, 
+                race_stats['winner'],
                 race_stats['num_horses'], 
-                race_stats['winner_odds'],
-                confidence,
                 race_stats['pool_size'],
-                race_stats['winner_pool_size'],
+                horse_score,
+                race_stats['pools_i'],
             ])
-            
-        print('win rate:', correct_predictions/(len(self.races) - self.skipped_races))
-        print('correct predictions:', correct_predictions)
-        print('total races:', len(self.races))
-        print('skipped races:', self.skipped_races)
-        # observations.to_csv(self.obs_file, index=False)
+            # print([
+            #     race_stats['date'],
+            #     race_stats['time'],
+            #     race_stats['winner'],
+            #     race_stats['num_horses'], 
+            #     race_stats['pool_size'],
+            #     horse_score,
+            #     race_stats['pools_i'],
+            # ])
+        
         self.output.seek(0)
         df = pd.read_csv(self.output)
         df.to_csv(self.obs_file, index=False)

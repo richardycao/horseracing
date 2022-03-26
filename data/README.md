@@ -22,6 +22,14 @@ What I know at each step:
 
 at each step, I don't just want to take the horse that I think will win. I want to take the horse that I think has the highest return. This could mean taking horses with lower confidence score because they have higher odds. I should record the ranking of all horses at the end, not just the winner.
 
+account for pools_i
+include horse_name in obs. I'll be comparing scores (includes 1A) with pools (excludes 1A) so I need to align them somehow.
+
+['2022-03-25', '04:16 PM', '6', 7, 27249, ['1', '3', '4', '5', '6', '7', '8'], array([0.2690535 , 0.22699097, 0.00320564, 0.03944512, 0.15064261,
+       0.29146217, 0.0192    ]), [4534, 0, 5621, 795, 2429, 5900, 5542, 2428]]
+
+don't use softmax 
+
 ==========
 
 try additive probabilities for scoring=1.
@@ -58,6 +66,9 @@ TODO:
 - returns are multiplicative so they are calculated wrong in evaluate_observation.ipynb.
 - look into crowdsourced league worlds rankings. softmax: https://www.pro-football-reference.com/blog/indexa828.html?p=171
 
+X2 - contains odds and some normalized features
+X3 - removes odds
+X4 - includes odds again and removes dates
 
 ===================
 
