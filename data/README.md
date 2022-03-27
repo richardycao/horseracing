@@ -10,7 +10,50 @@ Step 3: Train a model on the training data.
 Run `python3 create_model.py X.csv y.csv lgb.pkl`. args: X csv, y csv, output model file.
 
 Step 4: Use the model to predict winners of individuals races.
-Run `python3 predict_races.py lgb3.pkl 2022-03-23 2022-03-25 avgs3.csv obs_lgb3_0_m23m25.csv 0`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, simulation file, scoring method (0: additive, 1: multiplicative)
+Run `python3 predict_races.py rf4.pkl 2022-03-23 2022-03-25 avgs4.csv obs_rf4_0_m23m25.csv`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, simulation file
+
+Other tools:
+Run `python3 estimate_takeouts.py estimates.csv 2022-03-15 2022-03-26` to get takeout estimates at each park.
+Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26` to get the winrate of the horse with the nth-lowest odds.
+
+==========
+
+include odds rank in the dataset.
+
+if a column is missing a significant amount of data, remove all samples that are missing data for that column. alternative - don't include races that are missing entire columns.
+
+==========
+
+can I make profit at takeout of 15%? I can include park name in the simulation data. then only make bets on races at certain parks.
+can I estimate takeout rates from results.csv and pools.csv? try that.
+
+Find some parks with low rates.
+
+List of takeout rates at different parks from 2017: http://www.horseplayersassociation.org/2017Sortable.html
+
+I set the takeout to 0% and I actual made money in simulation. So now I know it's the takeout that's making it really hard to profit.
+
+I tried using natural distribution of winner by nth-highest-odds for p. e.g. lowest odds wins 32% of the time, 2nd lower wins 28%, etc. p = 0.32,0.28,...hardcoded. It performed better than the model, which means it probably estimated probabilities of winning (p) better than the model did.
+
+*** Don't use softmax for scoring  (maybe?) ***
+Softmax is assigning some horses 50 to 90% chances of winning, which is unrealistic. On average, the favorite horse wins 33% of the time. It's the horse that wins the most too.
+
+The components are: ranking or horse probabilities
+
+My ranking algorithm doesn't work - it doesn't give the correct percentages for winrate of each horse. How close is it to the actual ranks anyway?
+
+if a column is missing a significant amount of data, remove all samples that are missing data for that column. alternative - don't include races that are missing entire columns.
+
+try predicting place/score instead of win.
+
+try include 3 horses in each sample, instead of 2.
+
+ideas from https://www.youtube.com/watch?v=pmxBDuju3GU:
+- use -1 to 1 instead of 0/1.
+
+instead of choosing the horse with the highest expected return, go back to choosing the hose that I think will win, but modify the probability calculation estimate p better.
+
+try training a separate model for each number of horses.
 
 ==========
 
@@ -23,12 +66,9 @@ What I know at each step:
 at each step, I don't just want to take the horse that I think will win. I want to take the horse that I think has the highest return. This could mean taking horses with lower confidence score because they have higher odds. I should record the ranking of all horses at the end, not just the winner.
 
 account for pools_i
-include horse_name in obs. I'll be comparing scores (includes 1A) with pools (excludes 1A) so I need to align them somehow.
+include horse_number in obs. I'll be comparing scores (includes 1A) with pools (excludes 1A) so I need to align them somehow.
 
-['2022-03-25', '04:16 PM', '6', 7, 27249, ['1', '3', '4', '5', '6', '7', '8'], array([0.2690535 , 0.22699097, 0.00320564, 0.03944512, 0.15064261,
-       0.29146217, 0.0192    ]), [4534, 0, 5621, 795, 2429, 5900, 5542, 2428]]
-
-don't use softmax 
+don't use softmax (?)
 
 ==========
 

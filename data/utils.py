@@ -5,6 +5,8 @@ import numpy as np
 import datetime as dt
 import re
 
+def get_park_name(r):
+    return ' '.join(r.split('/')[-1].split('_')[2:-1])
 def get_details_df(r):
     return pd.read_csv(f'{r}/details.csv')
 def get_results_df(r):
@@ -30,13 +32,17 @@ def get_pools_df(r):
     def clean_pool_vals(x):
         if isinstance(x, int) or isinstance(x, float) or isinstance(x, np.int64):
             return int(x)
-        elif isinstance(x, str):
+        else:
             return int(x.replace(',',''))
 
     pools = pd.read_csv(f'{r}/pools.csv')
     for c in pools.columns:
         pools[c] = pools[c].apply(clean_pool_vals)
+    pools = pools[pools['win'] != 0]
     return pools
+def get_takeout_estimates_df():
+    takeouts = pd.read_csv('takeout_estimates.csv')
+    return takeouts
 
 def get_columns():
     per_horse_columns = [
@@ -91,6 +97,32 @@ def get_race_date_time(r):
     t = ' '.join([p for p in reversed(race_parts[:2])])
     return d, t
 
+def remove_dupes(arr):
+    seen = set()
+    result = []
+    for i in arr:
+        if i not in seen:
+            result.append(i)
+            seen.add(i)
+    return result
+
+def horse_number_digits_only(n):
+    return n if n[-1].isdigit() else n[:-1]
+
+# returns { '<horse_number>': <ranking 1 to n>, ... }
+def get_odds_ranks(r):
+    pools = get_pools_df(r)
+    pools['horse_number_int'] = pools.index + 1
+    sorted_pools = pools.sort_values('win', key=lambda x: -x).reset_index(drop=True)
+    sorted_pools['odds_rank'] = sorted_pools.index + 1
+    sorted_pools = sorted_pools.sort_values('horse_number_int').reset_index(drop=True)[['horse_number_int','odds_rank']]
+    return { sorted_pools['horse_number_int'][i]:sorted_pools['odds_rank'][i] for i in range(sorted_pools.shape[0])}
+
+def get_odds_probs():
+    odds_rank_winners = pd.read_csv('odds_ranks.csv')
+    odds_probs = (odds_rank_winners['odds_rank'].value_counts() / odds_rank_winners.shape[0]).to_list()
+    return odds_probs
+
 # gets group stats of a race
 def get_race_stats(r):
     # csvs = [c for c in listdir(r) if isfile(join(r, c))]
@@ -105,9 +137,11 @@ def get_race_stats(r):
     #     return
 
     stats = {}
+    park = get_park_name(r)
     results = get_results_df(r)
     left = get_racecard_left_df(r)
     pools = get_pools_df(r)
+    takeouts = get_takeout_estimates_df()
     d, t = get_race_date_time(r)
 
     stats['date'] = d
@@ -116,13 +150,15 @@ def get_race_stats(r):
     # stats['winner_odds'] = left[left['number'] == stats['winner']]['runner odds'].iloc[0]
     stats['num_horses'] = left.shape[0]
     stats['pool_size'] = pools['win'].sum()
+    stats['takeout'] = takeouts[takeouts['park'] == park]['takeout'].values[0]
 
     # pool_idx = left[left['number'] == stats['winner']].index[0]
     # stats['winner_pool_size'] = pools.iloc[pool_idx,:]['win']
 
     # stats['winner_pool_size'] = pools['win'][(int(stats['winner']) if stats['winner'][-1].isdigit() else int(stats['winner'][:-1])) - 1]
     stats['numbers'] = left['number'].to_list()
-    stats['pools_i'] = { str(k):v for k,v in zip(range(1,stats['num_horses']),pools['win'].to_list()) }
+    nums_only = remove_dupes([n if n[-1].isdigit() else n[:-1] for n in left['number'].to_list()])
+    stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pools['win'].to_list()) }
 
     return stats
 
@@ -183,7 +219,6 @@ def get_race_data(r, on_row, mode="train"):
                 i_rank = results.loc[results['horse number'] == i_num]['ranking'].values[0] if i_num in ranked_horse_numbers else None
                 j_rank = results.loc[results['horse number'] == j_num]['ranking'].values[0] if j_num in ranked_horse_numbers else None
 
-                y_row = -1
                 if i_rank == None and j_rank != None:
                     y_row = 1
                 elif i_rank != None and j_rank == None:
