@@ -7,14 +7,37 @@ Step 2: Clean data into X and y.
 Run `python3 create_train_data.py raw_data.csv X.csv y.csv avgs.csv`. args: input_file, X csv, y csv, output averages file
 
 Step 3: Train a model on the training data.
-Run `python3 create_model.py X.csv y.csv lgb.pkl`. args: X csv, y csv, output model file.
+Run `python3 create_model.py X5.csv y5.csv lgb5.pkl`. args: X csv, y csv, output model file.
 
 Step 4: Use the model to predict winners of individuals races.
-Run `python3 predict_races.py rf4.pkl 2022-03-23 2022-03-25 avgs4.csv obs_rf4_0_m23m25.csv`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, simulation file
+Run `python3 predict_races.py bayes 2022-03-15 2022-03-27 avgs5.csv obs_bayes2_m15m27.csv`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, simulation file
 
 Other tools:
 Run `python3 estimate_takeouts.py estimates.csv 2022-03-15 2022-03-26` to get takeout estimates at each park.
-Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26` to get the winrate of the horse with the nth-lowest odds.
+Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26` to get, for h horses in a race, the winrate of the horse with the nth-lowest odds.
+
+==========
+
+The Bayes model is essentially a machine learning model that predicts the probability of a horse winning the race, given 2 features, num_horses and odds_rank. I think all of the features need to be related to the other horses in the race. Rank of avg speed, rank of highest speed, etc.
+- Use a bunch of features to predict the probability of a horse winning the race. Do this for every horse. Softmax those values to get my estimates of p for each horse.
+
+==========
+
+ *** it's possible that binary classification models (rf, lgb) can't come close to using an empircal distribution (bayes). I might need to use a different strategy to estimate the `probability of 1st place, given horse_pool/total_pool`. Combining results of binary classification models into probabilities is an unnatural approach, and gives inncorrect probabilities. ***
+ - even though the winrate is high, the expected return is negative because the probabilities are calculated incorrectly.
+ - maybe instead of predicting the winners of 1v1s, I can predict the chance of winning for a single horse, given it's pool_frac.
+ - also include number of horses in the race into the data.
+ - I can extend the bayes model by using num_horses -> pool_frac (maybe).
+ - The Bayes model is essentially a machine learning model that predicts the probability of a horse winning the race, given 2 features, num_horses and odds_rank. I think all of the features need to be related to the other horses in the race. Rank of avg speed, rank of highest speed, etc.
+
+a higher model 1v1 winrate doesn't correlate with better simulation results.
+
+use a different odds_rank distribution based on number of horses.
+include number of horses in the dataset.
+
+Er and Dr calculation may be wrong. Fixed - removed the +1 from Er calculation.
+
+include horse_pool/total_pool in the dataset. maybe for place and show too.
 
 ==========
 
@@ -35,7 +58,7 @@ I set the takeout to 0% and I actual made money in simulation. So now I know it'
 
 I tried using natural distribution of winner by nth-highest-odds for p. e.g. lowest odds wins 32% of the time, 2nd lower wins 28%, etc. p = 0.32,0.28,...hardcoded. It performed better than the model, which means it probably estimated probabilities of winning (p) better than the model did.
 
-*** Don't use softmax for scoring  (maybe?) ***
+*** Don't use softmax for scoring ***
 Softmax is assigning some horses 50 to 90% chances of winning, which is unrealistic. On average, the favorite horse wins 33% of the time. It's the horse that wins the most too.
 
 The components are: ranking or horse probabilities

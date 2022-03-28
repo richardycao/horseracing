@@ -32,7 +32,7 @@ class PredictRaces:
 
         self.output = StringIO()
         self.csv_writer = writer(self.output)
-        self.csv_writer.writerow(['date','time','winner','num_horses','pool_size','takeout','scores','pools_i'])
+        self.csv_writer.writerow(['datetime','winner','num_horses','pool_size','takeout','scores','pools_i'])
 
         self.required_files = set(['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
                                     'racecard_pace','racecard_jock','pools'])
@@ -59,13 +59,6 @@ class PredictRaces:
             
             self.df = pd.DataFrame(columns=self.columns)
             race_stats = utils.get_race_stats(r)
-
-            #####
-            # for random predictions
-            # predicted_winner = np.random.choice(utils.get_racecard_left_df(r)['number'])
-            # confidence = 0
-            
-            
             
             if '.pkl' in self.model_file:
                 success = utils.get_race_data(r, on_row, mode='test')
@@ -86,7 +79,7 @@ class PredictRaces:
                     horse_score[utils.to_str(horse_pairs['horse_number_2'][i])] += preds[i][1]
                 
                 # scoring: softmax - this performs better
-                # horse_score = { k:v for k,v in zip(horse_score.keys(), utils.softmax([v for k,v in horse_score.items()])) }
+                horse_score = { k:v for k,v in zip(horse_score.keys(), utils.softmax([v for k,v in horse_score.items()])) }
                 
                 # scoring: raw probabilties - this performs very poorly for some reason.
                 # total_score = np.sum([v for k,v in horse_score.items()])
@@ -95,20 +88,31 @@ class PredictRaces:
                 # horse_score = dict(horse_score)
             elif self.model_file == 'bayes':
                 left = utils.get_racecard_left_df(r)
+                num_horses = len(left['number'])
                 odds_ranks = utils.get_odds_ranks(r)
-                horse_odds_ranks = { horse: odds_ranks[int(utils.horse_number_digits_only(horse))] for horse in left['number'] }
-                horse_score = { horse: (odds_probs[rank - 1] if rank - 1 < len(odds_probs) else 0) for horse, rank in horse_odds_ranks.items() }
+                horse_odds_ranks = {}
+                rank_not_found = False
+                for horse in left['number']:
+                    horse_int = int(utils.horse_number_digits_only(horse))
+                    if horse_int in odds_ranks:
+                        horse_odds_ranks[horse] = odds_ranks[horse_int]
+                    else:
+                        rank_not_found = True
+                if rank_not_found:
+                    print('rank not found')
+                    continue
+                # horse_odds_ranks = { horse: odds_ranks[int(utils.horse_number_digits_only(horse))] for horse in left['number'] }
+                horse_score = { horse: (odds_probs.iloc[num_horses-1, rank] if rank < odds_probs.shape[1] and num_horses-1 < odds_probs.shape[0] else 0) for horse, rank in horse_odds_ranks.items() }
             elif self.model_file == 'random':
                 left = utils.get_racecard_left_df(r)
                 odds_ranks = utils.get_odds_ranks(r)
                 horse_score = { str(horse): str(1/len(left['number'])) for horse in left['number'] }
             else:
                 continue
-            #####
 
+            date_time =  dt.datetime.strptime(race_stats['date']+' '+race_stats['time'], '%Y-%m-%d %I:%M %p')
             self.csv_writer.writerow([
-                race_stats['date'],
-                race_stats['time'],
+                date_time,
                 race_stats['winner'],
                 race_stats['num_horses'], 
                 race_stats['pool_size'],

@@ -46,10 +46,10 @@ def get_takeout_estimates_df():
 
 def get_columns():
     per_horse_columns = [
-        'horse_number','runner_odds','morning_odds','horse_name','horse_age','horse_gender','horse_siredam','trainer',
-        'horse_med','horse_weight','jockey','horse_power_rating','horse_wins/starts','horse_days_off','horse_avg_speed',
+        'horse_number','runner_odds','morning_odds','horse_name','horse_age','horse_gender','horse_siredam','horse_med',
+        'trainer','horse_weight','jockey','horse_power_rating','horse_wins/starts','horse_days_off','horse_avg_speed',
         'horse_avg_distance','horse_high_speed','horse_avg_class','horse_last_class','horse_num_races','early','middle',
-        'finish','jockey_trainer_starts','jockey_trainer_1st','jockey_trainer_2nd','jockey_trainer_3rd'
+        'finish','jockey_trainer_starts','jockey_trainer_1st','jockey_trainer_2nd','jockey_trainer_3rd','pool_frac'
     ]
 
     horse1_cols = [c+'_1' for c in per_horse_columns]
@@ -119,23 +119,11 @@ def get_odds_ranks(r):
     return { sorted_pools['horse_number_int'][i]:sorted_pools['odds_rank'][i] for i in range(sorted_pools.shape[0])}
 
 def get_odds_probs():
-    odds_rank_winners = pd.read_csv('odds_ranks.csv')
-    odds_probs = (odds_rank_winners['odds_rank'].value_counts() / odds_rank_winners.shape[0]).to_list()
+    odds_probs = pd.read_csv('odds_probs.csv')
     return odds_probs
 
 # gets group stats of a race
 def get_race_stats(r):
-    # csvs = [c for c in listdir(r) if isfile(join(r, c))]
-
-    # # Skips races with missing files
-    # missing_csv = False
-    # for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
-    #           'racecard_pace','racecard_jock','pools']:
-    #     if f'{n}.csv' not in csvs:
-    #         missing_csv = True
-    # if missing_csv:
-    #     return
-
     stats = {}
     park = get_park_name(r)
     results = get_results_df(r)
@@ -147,15 +135,11 @@ def get_race_stats(r):
     stats['date'] = d
     stats['time'] = t
     stats['winner'] = results['horse number'][0]
-    # stats['winner_odds'] = left[left['number'] == stats['winner']]['runner odds'].iloc[0]
     stats['num_horses'] = left.shape[0]
     stats['pool_size'] = pools['win'].sum()
-    stats['takeout'] = takeouts[takeouts['park'] == park]['takeout'].values[0]
+    takeout_vals = takeouts[takeouts['park'] == park]['takeout'].values
+    stats['takeout'] = takeout_vals[0] if len(takeout_vals) > 0 else 0.2
 
-    # pool_idx = left[left['number'] == stats['winner']].index[0]
-    # stats['winner_pool_size'] = pools.iloc[pool_idx,:]['win']
-
-    # stats['winner_pool_size'] = pools['win'][(int(stats['winner']) if stats['winner'][-1].isdigit() else int(stats['winner'][:-1])) - 1]
     stats['numbers'] = left['number'].to_list()
     nums_only = remove_dupes([n if n[-1].isdigit() else n[:-1] for n in left['number'].to_list()])
     stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pools['win'].to_list()) }
@@ -191,6 +175,10 @@ def get_race_data(r, on_row, mode="train"):
     results = get_results_df(r)
     ranked_horse_numbers = set(results['horse number'].values)
 
+    # Get pools
+    pools = get_pools_df(r)
+    total_pool_win = pools['win'].sum()
+
     # Racecard
     # 1. Get the list of horses from racecard_left_number.
     # 2. Iterate through all pairs of horses.
@@ -225,12 +213,42 @@ def get_race_data(r, on_row, mode="train"):
                     y_row = 0
                 elif i_rank != None and j_rank != None:
                     y_row = 0 if i_rank < j_rank else 1
-
-                row = [*datetime_row, *details_row, *i_row, *j_row, *[y_row]]
+                
+                i_pool_frac = pools[pools.iloc[:,0] == int(horse_number_digits_only(i_num))-1]['win']
+                j_pool_frac = pools[pools.iloc[:,0] == int(horse_number_digits_only(j_num))-1]['win']
+                if len(i_pool_frac) == 0 or len(j_pool_frac) == 0:
+                    return False
+                i_pool_frac = i_pool_frac.values[0] / total_pool_win
+                j_pool_frac = j_pool_frac.values[0] / total_pool_win
+                
+                row = [*datetime_row, *details_row, *i_row, i_pool_frac, *j_row, j_pool_frac, y_row]
                 on_row(row)
     return True
 
 def preprocess_dataset(data):
+    # X = data.iloc[:,:-1]
+    # y = data['result']
+    # for i in ['1','2']:
+    #     X['runner_odds_'+i] = X['runner_odds_'+i].apply(lambda x: eval_frac(x))
+    #     X['morning_odds_'+i] = X['morning_odds_'+i].apply(lambda x: eval_frac(x))
+
+    # X = X[['runner_odds_1','runner_odds_2','morning_odds_1','morning_odds_2']]
+    # return X, y
+
+    #####
+
+    # remove some rows with missing data.
+    # dash_cols = [
+    #     'horse_weight_1','horse_power_rating_1','horse_days_off_1','horse_avg_speed_1','horse_avg_distance_1',
+    #     'horse_high_speed_1','horse_avg_class_1','horse_last_class_1','horse_weight_2','horse_power_rating_2',
+    #     'horse_days_off_2','horse_avg_speed_2','horse_avg_distance_2','horse_high_speed_2','horse_avg_class_2',
+    #     'horse_last_class_2',
+    # ]
+    # for col in dash_cols:
+    #     data = data[data[col] != '- ']
+
+    #####
+
     X = data.iloc[:,:-1]
     y = data['result']
 
@@ -271,7 +289,13 @@ def preprocess_dataset(data):
     fixed_one_hot(X, 'race_type', ['Thoroughbred', 'Harness', 'Mixed', 'QuarterHorse', 'Arabian'])
     X = X.drop(['race_type'], axis=1)
 
-    # race_class (TODO)
+    # race_class - one-hot encode
+    # fixed_one_hot(X, 'race_class', ['Pace', 'Trot', 'Handicap', 'Claiming', 'Allowance', 'Maiden Claiming',
+    #    'Handicap Hurdle', 'Maiden', 'Maiden Special', 'Maiden Special Weight',
+    #    'Allowance Optional Claiming', 'Stakes', 'Handicap Chase',
+    #    'Maiden Optional Claiming', 'Unknown', 'Sweepstakes',
+    #    'Starter Optional Claiming', 'Starter Allowance', 'Maiden Hurdle',
+    #    'Sweepstakes Bumper',])
     X = X.drop(['race_class'], axis=1)
 
     # surface_name - one-hot encode
@@ -279,6 +303,18 @@ def preprocess_dataset(data):
     X = X.drop(['surface_name'], axis=1)
 
     # default_condition (TODO - see if there's a relationship e.g. good > good to soft > soft)
+    # def remove_parentheses(x):
+    #     if not isinstance(x, str):
+    #         return x
+
+    #     idx = x.find('(')
+    #     if idx != -1:
+    #         x = x[:idx]
+    #     x = x.strip()
+    #     return x
+    # X['default_condition'] = X['default_condition'].apply(lambda x: remove_parentheses(x))
+    # fixed_one_hot(X, 'default_condition', ['Fast','Firm','Good','Good to Soft','Muddy','Off Turf','Sloppy',
+    # 'Soft','Standard','Standard / Slow','Yielding','Yielding to Soft'])
     X = X.drop(['default_condition'], axis=1)
 
     for i in ['1','2']:
@@ -308,9 +344,6 @@ def preprocess_dataset(data):
         def stf(x):
             return str_to_float((x if isinstance(x, str) else str(x)).replace(' ',''))
         
-        # print(X['horse_age_'+i])
-        # print(X['horse_age_'+i].apply(stf).apply(lambda x: np.log(x)))
-        # print(normalize(X['horse_age_'+i].apply(stf).apply(lambda x: np.log(x)), 1.611, 0.3770))
         X['horse_age_'+i] = normalize(np.log(X['horse_age_'+i].apply(stf)), 1.611, 0.3770).fillna(0)
 
         # horse gender - a bunch of different "genders" as categories

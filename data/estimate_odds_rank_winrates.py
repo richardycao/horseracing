@@ -19,7 +19,7 @@ class EstimateOddsRanks:
         self.output = StringIO()
         self.csv_writer = writer(self.output)
 
-        self.csv_writer.writerow(['odds_rank'])
+        self.csv_writer.writerow(['odds_rank','num_horses'])
 
         self.races = []
         for d in dates:
@@ -44,6 +44,7 @@ class EstimateOddsRanks:
                 continue
             
             results = utils.get_results_df(r)
+            left = utils.get_racecard_left_df(r)
             pools = utils.get_pools_df(r)
             pools['horse_number'] = pools.index + 1
 
@@ -53,11 +54,20 @@ class EstimateOddsRanks:
             odds_ranks = utils.get_odds_ranks(r)
             
             if winning_horse_number in odds_ranks:
-                on_row([odds_ranks[winning_horse_number]])
+                on_row([odds_ranks[winning_horse_number], left.shape[0]])
 
         self.output.seek(0)
         df = pd.read_csv(self.output)
-        df.to_csv(self.output_file, index=False)
+
+        low, high = 1, 20
+        result = pd.DataFrame(columns=[str(i) for i in range(low, high)])
+        for i in range(low, high):
+            dist = df[df['num_horses']==i]
+            probs = (dist.value_counts()/dist.shape[0]).to_list()
+            probs = probs + [0]*(high-low - len(probs))
+            result.loc[0 if pd.isnull(result.index.max()) else result.index.max() + 1] = probs
+        
+        result.to_csv(self.output_file, index=False)
 
 def main(output_file, start, end):
     c = EstimateOddsRanks(output_file, start, end)
