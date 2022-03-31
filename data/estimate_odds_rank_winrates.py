@@ -32,16 +32,9 @@ class EstimateOddsRanks:
             self.csv_writer.writerow(row)
 
         for r in tqdm(self.races):
-            csvs = [c for c in listdir(r) if isfile(join(r, c))]
-
-            # Skips races with missing files
-            missing_csv = False
-            for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
-                    'racecard_pace','racecard_jock','pools']:
-                if f'{n}.csv' not in csvs:
-                    missing_csv = True
-            if missing_csv:
-                continue
+            present = utils.are_all_csvs_present(r)
+            if not present:
+                return
             
             results = utils.get_results_df(r)
             left = utils.get_racecard_left_df(r)

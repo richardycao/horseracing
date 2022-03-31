@@ -12,14 +12,17 @@ from io import StringIO
 from csv import writer
 
 class PredictRaces:
-    def __init__(self, model_file, start_str, end_str, avgs, obs):
-        self.model_file = model_file # "*.pkl", "bayes", or "random"
+    def __init__(self, model_file, start_str, end_str, avgs, obs, mode):
+        self.model_file = model_file
         self.start_date = dt.datetime.strptime(start_str, "%Y-%m-%d")
         self.end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
-        self.avgs = pd.read_csv(avgs)
         self.obs_file = obs
-
-        self.columns = utils.get_columns()
+        self.mode = mode
+        if mode == '1v1' or mode == 'bayes' or mode == 'random':
+            self.avgs = pd.read_csv(avgs)
+            self.columns = utils.get_columns()
+        elif mode == 'rank':
+            self.columns = utils.get_columns_v2()
 
         path = '../scrape/results'
         dates = [f for f in listdir(path) if not isfile(join(path, f))]
@@ -41,26 +44,30 @@ class PredictRaces:
         def on_row(row):
             self.df.loc[0 if pd.isnull(self.df.index.max()) else self.df.index.max() + 1] = row
         
-        if '.pkl' in self.model_file:
+        if self.mode == '1v1' or self.mode == 'rank':
             model = joblib.load(self.model_file)
 
         odds_probs = utils.get_odds_probs()
-        # print(odds_probs)
         for r in tqdm(self.races):
-            csvs = [c for c in listdir(r) if isfile(join(r, c))]
-            # Skips races with missing files
-            missing_csv = False
-            for n in self.required_files:
-                if f'{n}.csv' not in csvs:
-                    missing_csv = True
-            if missing_csv:
-                self.skipped_races += 1
+            present = utils.are_all_csvs_present(r)
+            if not present:
                 continue
             
             self.df = pd.DataFrame(columns=self.columns)
             race_stats = utils.get_race_stats(r)
             
-            if '.pkl' in self.model_file:
+            if self.mode == 'rank':
+                left = utils.get_racecard_left_df(r)
+                success = utils.get_race_data_v2(r, on_row)
+                if not success:
+                    continue
+
+                X, y = utils.preprocess_dataset_v2(self.df)
+                preds = model.predict_proba(X)
+                scores = preds[:,1] / np.sum(preds[:,1])
+                # scores = utils.softmax(preds[:,1])
+                horse_score = { horse: score for horse, score in zip(left['number'], scores) }
+            elif self.mode == '1v1':
                 success = utils.get_race_data(r, on_row, mode='test')
                 if not success:
                     continue
@@ -86,7 +93,7 @@ class PredictRaces:
                 # for k in horse_score.keys():
                 #     horse_score[k] /= total_score
                 # horse_score = dict(horse_score)
-            elif self.model_file == 'bayes':
+            elif self.mode == 'bayes':
                 left = utils.get_racecard_left_df(r)
                 num_horses = len(left['number'])
                 odds_ranks = utils.get_odds_ranks(r)
@@ -99,11 +106,10 @@ class PredictRaces:
                     else:
                         rank_not_found = True
                 if rank_not_found:
-                    print('rank not found')
                     continue
                 # horse_odds_ranks = { horse: odds_ranks[int(utils.horse_number_digits_only(horse))] for horse in left['number'] }
                 horse_score = { horse: (odds_probs.iloc[num_horses-1, rank] if rank < odds_probs.shape[1] and num_horses-1 < odds_probs.shape[0] else 0) for horse, rank in horse_odds_ranks.items() }
-            elif self.model_file == 'random':
+            elif self.mode == 'random':
                 left = utils.get_racecard_left_df(r)
                 odds_ranks = utils.get_odds_ranks(r)
                 horse_score = { str(horse): str(1/len(left['number'])) for horse in left['number'] }
@@ -130,15 +136,15 @@ class PredictRaces:
             #     horse_score,
             #     race_stats['pools_i'],
             # ])
-        
+        # print('bye')
         self.output.seek(0)
         df = pd.read_csv(self.output)
         df.to_csv(self.obs_file, index=False)
 
-def main(model_file, start, end, avgs, obs):
-    p = PredictRaces(model_file, start, end, avgs, obs)
+def main(model_file, start, end, avgs, obs, mode):
+    p = PredictRaces(model_file, start, end, avgs, obs, mode)
     p.run()
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    main(args[0], args[1], args[2], args[3], args[4])
+    main(args[0], args[1], args[2], args[3], args[4], args[5])

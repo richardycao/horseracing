@@ -1,16 +1,16 @@
 
 Step 1: Create raw data.
-Run `python3 create_raw_data.py raw_data.csv 2022-03-15 2022-03-22`. args: output_file, start_date, end_date (start and end dates are inclusive)
+Run `python3 create_raw_data.py raw_data.csv 2022-03-15 2022-03-22 rank`. args: output_file, start_date, end_date (start and end dates are inclusive), mode (1v1 or rank)
 Or to update raw data, run `python3 update_raw_data.py raw_data_2.csv 2022-03-15 2022-03-15`
 
 Step 2: Clean data into X and y.
-Run `python3 create_train_data.py raw_data.csv X.csv y.csv avgs.csv`. args: input_file, X csv, y csv, output averages file
+Run `python3 create_train_data.py raw_data.csv X.csv y.csv avgs.csv rank`. args: input_file, X csv, y csv, output averages file, mode (1v1 or rank)
 
 Step 3: Train a model on the training data.
 Run `python3 create_model.py X5.csv y5.csv lgb5.pkl`. args: X csv, y csv, output model file.
 
 Step 4: Use the model to predict winners of individuals races.
-Run `python3 predict_races.py bayes 2022-03-15 2022-03-27 avgs5.csv obs_bayes2_m15m27.csv`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, simulation file
+Run `python3 predict_races.py bayes 2022-03-15 2022-03-27 avgs5.csv obs_bayes2_m15m27.csv rank`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, mode (1v1, rank, bayes, random)
 
 Other tools:
 Run `python3 estimate_takeouts.py estimates.csv 2022-03-15 2022-03-26` to get takeout estimates at each park.
@@ -20,6 +20,18 @@ Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26
 
 The Bayes model is essentially a machine learning model that predicts the probability of a horse winning the race, given 2 features, num_horses and odds_rank. I think all of the features need to be related to the other horses in the race. Rank of avg speed, rank of highest speed, etc.
 - Use a bunch of features to predict the probability of a horse winning the race. Do this for every horse. Softmax those values to get my estimates of p for each horse.
+- This didn't work. The problem is that it's not optimizing a distribution. It's optimizing to find individual probabilities and then I put them together into a distribution. A model that estimates the distribution itself would be better.
+
+*** I don't need to login to scrape historical data ***
+Try getting some imperfect data. The thing I lack most is data. Fortunately, all I need to calculate expected return, r_i, is s, omega, h_i, b_i, and p_i. s is known. I can estimate omega and h_i that roughly fits the odds by using the winning amounts in the results. I can get p from the odds rankings in the results. Using that I can find b_i and r_i. It's not perfect but it's a lot of data.
+- It's easier to click a race track in the dropdown than it is to click a certain calendar day.
+
+Autoencoders naturally estimate a distribution. I can account for the variable number of horses by using a max number of horses - only use races with 10 or fewer horses.
+- Check the simulation to see how many horses are in the races I predicted on. THe highest is 8. So it makes sense to limit the number of horses to 10. The probabilities estimates will get too noisy with a lot of horses anyway.
+- Bayesian deep learning: https://jorisbaan.nl/2021/03/02/introduction-to-bayesian-deep-learning.html#:~:text=A%20Bayesian%20Neural%20Network%20(BNN,even%20more%20difficult%20than%20usual.
+- VAEs: https://towardsdatascience.com/understanding-variational-autoencoders-vaes-f70510919f73
+
+Include up to 10 horses in a dataset. Toss the races with >10 horses. Train a supervised learning model, where each sample contains all 10 horses. 1 race may produce samples that contain all combinations of the 10 horses - 10! horses. The output of the model should be probabilities of winning for each horse. I can use softmax here, since it's part of the optimization that the model is doing.
 
 ==========
 

@@ -209,7 +209,6 @@ def get_race_card(browser, race_path):
             df.to_csv(f'{race_path}/racecard_summ.csv')
         elif i == 1:
             power_wins_daysoff = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
-            print(power_wins_daysoff)
             df = pd.DataFrame({
                 'power rating': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 0],
                 'wins/starts': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 1],

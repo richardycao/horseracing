@@ -10,14 +10,14 @@ def main(X_csv, y_csv, model_file):
     X = pd.read_csv(X_csv)
     y = pd.read_csv(y_csv)
 
-    model = lgbm.LGBMClassifier(n_estimators=10000)
-    model.fit(
-        X, y,
-        eval_metric="binary_logloss",
-    )
+    # model = lgbm.LGBMClassifier(n_estimators=10000)
+    # model.fit(
+    #     X, y,
+    #     eval_metric="binary_logloss",
+    # )
 
-    # model = RandomForestClassifier()
-    # model.fit(X, y)
+    model = RandomForestClassifier()
+    model.fit(X, y)
 
     joblib.dump(model, model_file)
 

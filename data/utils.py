@@ -1,9 +1,11 @@
+from multiprocessing import pool
 from os import listdir
 from os.path import isfile, join
 import pandas as pd
 import numpy as np
 import datetime as dt
 import re
+from scipy.stats import rankdata
 
 def get_park_name(r):
     return ' '.join(r.split('/')[-1].split('_')[2:-1])
@@ -60,6 +62,19 @@ def get_columns():
         *horse1_cols, *horse2_cols, 'result'
     ]
 
+def get_rankable_cols():
+    return ['runner odds','race morning odds','age','num races','early','middle','finish',
+        'starts','1st','2nd','3rd','horse winrate','horse wins','horse starts','pool frac']
+
+def get_columns_v2():
+    horse_cols = [c.strip().replace(' ','_') for c in get_rankable_cols()]
+    horse_rank_cols = [c+'_rank' for c in horse_cols]
+    return ['num_horses','pool_frac_rank','result']
+    return [
+        'date','time','num_horses','horse_number',*horse_cols, *horse_rank_cols, 'result'
+    ]
+    
+
 def time_in_range(start, end, x):
     """Return true if x is in the range [start, end]"""
     if start <= end:
@@ -78,6 +93,12 @@ def to_str(x):
         return str(x)
     return str(x)
 
+def frac_top(x):
+        parts = x.replace(' ','').split('/')
+        return float(parts[0])
+def frac_bot(x):
+    parts = x.replace(' ','').split('/')
+    return float(parts[1])
 def eval_frac(x):
     if isinstance(x, int) or isinstance(x, float) or isinstance(x, np.int64):
         return float(x)
@@ -108,6 +129,16 @@ def remove_dupes(arr):
 
 def horse_number_digits_only(n):
     return n if n[-1].isdigit() else n[:-1]
+
+def are_all_csvs_present(r):
+    csvs = [c for c in listdir(r) if isfile(join(r, c))]
+
+    # Skips races with missing files
+    for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
+              'racecard_pace','racecard_jock','pools']:
+        if f'{n}.csv' not in csvs:
+            return False
+    return True
 
 # returns { '<horse_number>': <ranking 1 to n>, ... }
 def get_odds_ranks(r):
@@ -152,15 +183,8 @@ def softmax(x):
 
 # converts a race into 1v1s
 def get_race_data(r, on_row, mode="train"):
-    csvs = [c for c in listdir(r) if isfile(join(r, c))]
-
-    # Skips races with missing files
-    missing_csv = False
-    for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
-              'racecard_pace','racecard_jock','pools']:
-        if f'{n}.csv' not in csvs:
-            missing_csv = True
-    if missing_csv:
+    present = are_all_csvs_present(r)
+    if not present:
         return
 
     # Get race time
@@ -186,6 +210,11 @@ def get_race_data(r, on_row, mode="train"):
     # 4. For each horse in the pair, get all the values in that list and put it into a row.
     # 5. For each pair, combine race_time_row, details_row, and pair_row into 1 sample in df.
     racecard_left = get_racecard_left_df(r)
+    racecard_summ = get_racecard_summ_df(r)
+    racecard_snap = get_racecard_snap_df(r)
+    racecard_spee = get_racecard_spee_df(r)
+    racecard_pace = get_racecard_pace_df(r)
+    racecard_jock = get_racecard_jock_df(r)
     num_horses = racecard_left.shape[0]
     if num_horses != len(ranked_horse_numbers) and mode == 'test':
         return False
@@ -195,12 +224,6 @@ def get_race_data(r, on_row, mode="train"):
             i_num = racecard_left.iloc[i]['number']
             j_num = racecard_left.iloc[j]['number']
             if i != j and ((i_num in ranked_horse_numbers or j_num in ranked_horse_numbers) if mode == 'train' else True):
-                racecard_summ = get_racecard_summ_df(r)
-                racecard_snap = get_racecard_snap_df(r)
-                racecard_spee = get_racecard_spee_df(r)
-                racecard_pace = get_racecard_pace_df(r)
-                racecard_jock = get_racecard_jock_df(r)
-
                 i_row = pd.concat([racecard_left.iloc[i,1:], racecard_summ.iloc[i,1:], racecard_snap.iloc[i,1:], racecard_spee.iloc[i,1:], racecard_pace.iloc[i,1:], racecard_jock.iloc[i,1:]])
                 j_row = pd.concat([racecard_left.iloc[j,1:], racecard_summ.iloc[j,1:], racecard_snap.iloc[j,1:], racecard_spee.iloc[j,1:], racecard_pace.iloc[j,1:], racecard_jock.iloc[j,1:]])
 
@@ -223,6 +246,74 @@ def get_race_data(r, on_row, mode="train"):
                 
                 row = [*datetime_row, *details_row, *i_row, i_pool_frac, *j_row, j_pool_frac, y_row]
                 on_row(row)
+    return True
+
+# Only ranks for now, add other stuff in later.
+def get_race_data_v2(r, on_row):
+    present = are_all_csvs_present(r)
+    if not present:
+        return
+
+    d, t = get_race_date_time(r)
+    results = get_results_df(r)
+    left = get_racecard_left_df(r)
+    left = left.reset_index(drop=True)
+    num_horses = left.shape[0]
+    snap = get_racecard_snap_df(r)
+    pace = get_racecard_pace_df(r)
+    jock = get_racecard_jock_df(r)
+    pools = get_pools_df(r)
+    if pools.shape[0] == 0:
+        return False
+    pool_size = pools['win'].sum()
+    
+    # Make all columns to be numeric
+    data = pd.concat([left.iloc[:,1:], snap.iloc[:,1:], pace.iloc[:,1:], jock.iloc[:,1:]], axis=1)
+    def horse_idx(x):
+        return int(horse_number_digits_only(str(x)))-1
+    data['pool frac'] = data['number'].apply(lambda x: pools['win'][horse_idx(x)] if horse_idx(x) < pools.shape[0] else 0) / pool_size
+    data['runner odds'] = data['runner odds'].apply(lambda x: eval_frac(x))
+    data['race morning odds'] = data['race morning odds'].apply(lambda x: eval_frac(x))
+    data['horse winrate'] = data['wins/starts'].apply(lambda x: eval_frac(x))
+    data['horse wins'] = data['wins/starts'].apply(lambda x: frac_top(x))
+    data['horse starts'] = data['wins/starts'].apply(lambda x: frac_bot(x))
+
+    # Create rank columns
+    rankable_cols = get_rankable_cols()
+    data = data[['number']+rankable_cols]
+
+    # Method 1
+    data['runner odds rank rank'] = rankdata(data['runner odds'].to_numpy())
+    data['race morning odds rank'] = rankdata(data['race morning odds'].to_numpy())
+    data['age rank'] = rankdata(data['age'].to_numpy())
+    data['num races rank'] = rankdata(-data['num races'].to_numpy())
+    data['early rank'] = rankdata(-data['early'].to_numpy())
+    data['middle rank'] = rankdata(data['middle'].to_numpy())
+    data['finish rank'] = rankdata(data['finish'].to_numpy())
+    data['starts rank'] = rankdata(data['starts'].to_numpy())
+    data['1st rank'] = rankdata(-data['1st'].to_numpy())
+    data['2nd rank'] = rankdata(-data['2nd'].to_numpy())
+    data['3rd rank'] = rankdata(-data['3rd'].to_numpy())
+    data['horse winrate rank'] = rankdata(-data['horse winrate'].to_numpy())
+    data['horse wins rank'] = rankdata(-data['horse wins'].to_numpy())
+    data['horse starts rank'] = rankdata(-data['horse starts'].to_numpy())
+    data['pool frac rank'] = rankdata(-data['pool frac'].to_numpy())
+
+    # Method 2
+    # for c in rankable_cols:
+    #     data[c+' rank'] = (rankdata(data[c].to_list()) - 1) / num_horses
+
+    # Create result column
+    winner = results['horse number'][0]
+    results = np.zeros(data.shape[0])
+    results[data[data['number'] == winner].index] = 1
+    data['result'] = results
+    data = data[['pool frac rank', 'result']]
+
+    # Write each row
+    for i in range(data.shape[0]):
+        on_row([num_horses] + data.iloc[i,:].to_list())
+
     return True
 
 def preprocess_dataset(data):
@@ -375,12 +466,6 @@ def preprocess_dataset(data):
 
         # horse wins/starts - convert to decimal and get fraction parts. various types of skew reduction.
         #                     normalize it with hardcoded mean and std. fill na with 0.
-        def frac_top(x):
-            parts = x.replace(' ','').split('/')
-            return float(parts[0])
-        def frac_bot(x):
-            parts = x.replace(' ','').split('/')
-            return float(parts[1])
         X['horse_winrate_'+i] = normalize(np.power(X['horse_wins/starts_'+i].apply(lambda x: eval_frac(x)), 1/3), 0.1889, 0.2712).fillna(0)
         X['horse_wins'+i] = normalize(np.power(X['horse_wins/starts_'+i].apply(lambda x: frac_top(x)), 1/3), 0.6365, 0.9833).fillna(0)
         X['horse_starts'+i] = normalize(np.power(X['horse_wins/starts_'+i].apply(lambda x: frac_bot(x)), 1/3), 1.317, 1.802).fillna(0)
@@ -437,5 +522,18 @@ def preprocess_dataset(data):
 
         # 3rd - unskew all nonzero values, leave the zeros as they are. normalize.
         X['jockey_trainer_3rd_'+i] = normalize(np.log(X['jockey_trainer_3rd_'+i].apply(stf).replace(0, np.nan)).fillna(0), 1.661, 1.303)
+
+    return X, y
+
+def preprocess_dataset_v2(data):
+    X = data.iloc[:,:-1]
+    y = data['result']
+
+    # def mins_to_cycle(mins):
+    #     radians = mins*(2*np.pi)/(60*24)
+    #     return np.cos(radians), np.sin(radians)
+    # X['time_cos'] = date_time.apply(lambda x: mins_to_cycle(x.hour*60 + x.minute)[0])
+    # X['time_sin'] = date_time.apply(lambda x: mins_to_cycle(x.hour*60 + x.minute)[1])
+    # X = X.drop(['date','time','horse_number'], axis=1)
 
     return X, y
