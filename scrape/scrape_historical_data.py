@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
@@ -10,6 +11,7 @@ import datetime as dt
 import re
 import sys
 import traceback
+import pandas as pd
 
 ##### utils functions #####
 
@@ -42,9 +44,8 @@ def safe_click(component, actions, label, move=True, retries=2, retry_delay=1, v
             return
         except Exception:
             if retries - r == 0:
-                if verbose:
-                    traceback.print_exc()
                 if not on_err:
+                    traceback.print_exc()
                     exit(1)
                 return on_err()
             if verbose:
@@ -52,15 +53,26 @@ def safe_click(component, actions, label, move=True, retries=2, retry_delay=1, v
             time.sleep(retry_delay)
     exit(1)
 
+def pad_or_trunc_list(arr, target_len):
+    return arr[:target_len] + ['-']*(target_len - len(arr))
+
+def apply_scratched(arr, scratched):
+    i = 0
+    result = []
+    for s in scratched:
+        if not s:
+            result.append(arr[i])
+            i += 1
+        else:
+            result.append('-')
+    return result
+
+def find_scratched(html, query):
+    return [len([k for k in re.finditer('class="h5 text-scratched"', j)]) for j in [html[i.start():i.end()] for i in re.finditer(query, html)]]
+
 ##### helper functions #####
 
 def setup():
-    # today = date.today()
-    # date_string = today.strftime("%Y-%m-%d")
-    # date_path = f'./history/{date_string}'
-    # if not os.path.exists(date_path):
-    #     os.makedirs(date_path)
-
     options = Options()
     # Add all these params to bypass bot detection: https://stackoverflow.com/questions/53039551/selenium-webdriver-modifying-navigator-webdriver-flag-to-prevent-selenium-detec
     options.add_argument("--disable-blink-features")
@@ -76,12 +88,15 @@ def setup():
     driver.refresh()
 
     # Unhide results
-    # switch = safe_find(driver, By.CLASS_NAME, 'switch__control.thumb', num_results=1, err_msg='Error finding switch. Stopping')
-    # actions.move_to_element(switch[0]).perform()
-    # safe_click(switch[0])
+    # After midnight, the switch isn't visible until more race results are shown. I need to switch
+    # to another calendar day to flip the switch.
+    temp_date = dt.datetime.strptime('2022-03-30', "%Y-%m-%d")
+    travel_back(driver, actions, target=temp_date)
+    switch = safe_find(driver, By.CLASS_NAME, 'switch__control.thumb', num_results=1, err_msg='Error finding switch. Stopping')
+    safe_click(switch[0], actions, 'hide results switch', move=True)
 
     # # Refresh the page to load first results
-    # driver.refresh()
+    driver.refresh()
     
     return driver, actions
 
@@ -100,9 +115,14 @@ def get_tracks_list(driver):
 def month_year_only(d):
     return d.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
+def scroll_to_top(driver):
+    body = safe_find(driver, By.TAG_NAME, 'body', num_results=1, err_msg='Error finding body. Stopping.')
+    body[0].send_keys(Keys.CONTROL + Keys.HOME)
+
 def click_calendar(driver, actions):
+    scroll_to_top(driver)
     calendar = safe_find(driver, By.CLASS_NAME, 'tvg-icon-calendar', num_results=1, err_msg='Error finding calendar. Stopping.')
-    safe_click(calendar[0], actions, 'calendar')
+    safe_click(calendar[0], actions, 'calendar', move=True)
 
 def click_track_dropdown(driver, actions):
     track_dropdown = safe_find(driver, By.CSS_SELECTOR, 'select[qa-label="raceReplaysTrackList"]', num_results=1, err_msg='Error finding track_dropdown. Stopping.')
@@ -121,7 +141,7 @@ def travel_back(driver, actions, open_calendar=True, target=None, num_days=None)
         print('Must provide at least one of target date or num_days. Stopping.')
         exit(1)
 
-    # assumes the calendar is already open
+    # find_current_day assumes the calendar is already open
     def find_current_day(driver):
         days = safe_find(driver, By.CLASS_NAME, "btn.btn-default.btn-sm.btn-info.active", num_results=None, err_msg='Error finding month and year of calendar. Stopping.')
         html = days[0].get_attribute('innerHTML')
@@ -134,8 +154,6 @@ def travel_back(driver, actions, open_calendar=True, target=None, num_days=None)
     month_year = find_current_month_year(driver)
     day = find_current_day(driver)
     cur_date = dt.datetime.strptime(f'{day} {month_year}', "%d %B %Y")
-
-    # (TODO) Create a directory for this date, if it doesn't already exist.
 
     if target:
         if target > cur_date:
@@ -170,70 +188,111 @@ def get_race_date_time(driver, row_idx):
 
 def click_show_race_card(driver, actions):
     btn = safe_find(driver, By.CSS_SELECTOR, "button[qa-label=\"showFullCardBtn\"]", num_results=1, err_msg='Error finding show race card button. Stopping.')
-    safe_click(btn[0], actions, 'show race card button')
+    safe_click(btn[0], actions, 'show race card button', move=True)
 
-def get_results(driver, actions):
-    pass
+def get_results(driver, actions, race_path):
+    def on_missing_results():
+        return False
+    results = safe_find(driver, By.CLASS_NAME, 'table.race-results.no-margin', num_results=1, err_msg=f'Error finding results for path: {race_path}. Skipping.', on_err=on_missing_results)
+    if results == False:
+        return
 
-def get_racecard(driver, actions):
-    pass
+    html = results[0].get_attribute('innerHTML')
+    number = find_value_in_html(html, left='runner\.bettingInterestNumber" style="color: rgb\(.{1,20}\)\;">', right='</span></div>')
+    name = find_value_in_html(html, left='ng-bind="runner.runnerName">', right='</strong></td>')
+    win = pad_or_trunc_list(find_value_in_html(html, left='winPayoff\)">\$', right='</td>'), len(number))
+    place = pad_or_trunc_list(find_value_in_html(html, left='placePayoff\)">\$', right='</td>'), len(number))
+    show = pad_or_trunc_list(find_value_in_html(html, left='showPayoff\)">\$', right='</td>'), len(number))
+    df = pd.DataFrame({
+        'ranking': [_ for _ in range(1, len(number) + 1)],
+        'horse number': number,
+        'horse name': name,
+        'win': win,
+        'place': place,
+        'show': show
+    })
+    df.to_csv(f'{race_path}/results.csv')
+
+def get_racecard(driver, actions, race_path):
+        def on_missing_results():
+            return False
+        left = safe_find(driver, By.CLASS_NAME, 'race-handicapping-results', num_results=1, err_msg=f'Error finding racecard left for path: {race_path}. Skipping.', on_err=on_missing_results)
+        if left == False:
+            return
+        html = left[0].get_attribute('innerHTML')
+        scratched = find_scratched(html, query='<strong ng-class="\{.{0,20}: runner.scratched\}" class="h5.{0,20}" qa-label="horse-name">')
+
+        number = find_value_in_html(html, left='<span class="horse-number-label" ng-style="\{.{1,20}: runner.numberColor\}" style="color: rgb(.{1,20})\;">', right='</span></div></td>')
+        runner_odds = find_value_in_html(html, left='<strong ng-if="!runner.scratched" class="race-current-odds.{0,20}" ng-class="\{.{1,20} : runner.favorite === true\}">', right='</strong>')
+        race_morning_odds = find_value_in_html(html, left='<span ng-if="!runner\.scratched" class="race-morning-odds">', right='</span>')
+        name = find_value_in_html(html, left='<strong ng-class="\{.{0,20}: runner.scratched\}" class="h5.{0,20}" qa-label="horse-name">', right='</strong>', width=50)
+        age = find_value_in_html(html, left='<span qa-label="age">', right='</span>')
+        gender = find_value_in_html(html, left='<span qa-label="gender">', right='</span>')
+        sire_dam = find_value_in_html(html, left='<span qa-label="sire-dam">', right='</span>', width=70)
+
+        df = pd.DataFrame({
+            'number': number,
+            'runner odds': apply_scratched(runner_odds, scratched),
+            'race morning odds': apply_scratched(race_morning_odds, scratched),
+            'name': name,
+            'age': age,
+            'gender': gender,
+            'sire dam': sire_dam,
+        })
+        df.to_csv(f'{race_path}/racecard_left.csv')
 
 def get_page(driver, actions, track_name):
-    # (TODO) For each race, create a directory, if it doesn't already exist, for time + race_park_name + race_number, 
-    # under the date directory.
-    # get the date and time from the first row. get the track name from 
-    # cur_date_str = cur_date.strftime("%Y-%m-%d")
-    # date_path = f'./historical_results/{cur_date_str}'
-    # if not os.path.exists(date_path):
-    #     os.makedirs(date_path)
-
-    print(f'    {track_name}')
     def on_empty_page():
         return []
     def on_stale_row():
         return False
 
-    row_retries = 2
+    row_retries = 3
     for r in range(row_retries + 1):
         rows = safe_find(driver, By.CLASS_NAME, 'replay-list__item-line', num_results=None, 
-                            err_msg='Error find results on results page.',on_err=on_empty_page)
+                            err_msg='Error finding results on results page.',on_err=on_empty_page)
         if not rows:
             print(f'Found empty page for track {track_name}. Skipping.')
             return
-        is_successful = safe_click(rows[0], actions, f'{track_name} row 0 (check if loaded)', move=False, verbose=True, on_err=on_stale_row)
-        if is_successful:
-            print('is successful')
+        is_successful = safe_click(rows[0], actions, f'{track_name} row 0 (check if loaded)', move=False, verbose=False, on_err=on_stale_row)
+        if is_successful == False:
+            continue
+        else:
             break
-    if not is_successful:
-        print('was not successful')
+    if is_successful == False:
         return
 
     for i in range(len(rows)):
-        # (TODO)
-        # click_show_race_card(driver, actions)
-        # get_results(driver, actions)
-        # get_racecard(driver, actions)
+        new_rows = safe_find(driver, By.CLASS_NAME, 'replay-list__item-line', num_results=None, 
+                            err_msg='Error finding rows on results page.')
 
-        new_rows = safe_find(driver, By.CLASS_NAME, 'replay-list__item-line', num_results=None, verbose=False,
-                            err_msg='Error find results on results page.', on_err=on_empty_page)
-        if not new_rows:
-            print(f'Found empty page for track {track_name}. Skipping.')
-            return
+        # Create folder for the race
+        html = new_rows[i].get_attribute('innerHTML')
+        dt = find_value_in_html(html, left='<span class="replay-list__cell col-date" qa-label="raceReplay-date">', right='</span>')
+        racenum = find_value_in_html(html, left='<span class="replay-list__cell col-race__number" qa-label="raceReplay-raceNumber">', right='</span>')
+        d = dt[0].split(' ')[0].split('-')
+        d = '-'.join([d[2], d[0], d[1]])
+        t = '_'.join([_ for _ in reversed(dt[0].split(' ')[1:])])
+        folder_name = '_'.join([t, track_name.strip().replace(' ','_'), racenum[0]])
+        race_path = f'./historical_results/{d}/{folder_name}'
+        if os.path.exists(race_path):
+            continue
+        os.makedirs(race_path)
+
+        # Get race data
+        safe_click(new_rows[i], actions, f'{track_name} row {i}', move=False)
+        click_show_race_card(driver, actions)
+        get_results(driver, actions, race_path)
+        get_racecard(driver, actions, race_path)
         
-        if i < len(new_rows) - 1:
-            safe_click(new_rows[i+1], actions, f'{track_name} row {i+1}', move=False)
-            time.sleep(0.5)
-
 def iterate_through_tracks(driver, actions, on_track):
     tracks = get_tracks_list(driver)
     # Reference for selectors: https://selenium-python.readthedocs.io/navigating.html#filling-in-forms
     dropdown = safe_find(driver, By.CSS_SELECTOR, 'select[qa-label="raceReplaysTrackList"]', num_results=1, err_msg='Error finding tracks dropdown. Stopping.')
     all_options = safe_find(dropdown[0], By.TAG_NAME, 'option', num_results=None, err_msg='Error finding options in track dropdown. Stopping.')
     for i, option in enumerate(all_options):
-        # print("Value is: %s" % option.get_attribute("value"))
         safe_click(option, actions, 'track {tracks[i]}', move=False)
         on_track(driver, actions, tracks[i])
-
 
 ##### main code #####
 
@@ -262,26 +321,6 @@ def main(start_str, end_str):
 
         cur_date = cur_date - dt.timedelta(days=1)
         travel_back(driver, actions, num_days=1)
-
-    """
-    Steps for bot:
-    1. click on the date box.
-    2. read the month and year. read the date from the highlighted box.
-    3. if the date is ahead of the starting point, click the back arrow until we're at the 
-        right month. then click on the right day.
-    4. the first track is already selected.
-        i. the first row is already selected.
-            - click the "show race card" button.
-            - download the results table into a csv.
-            - download the racecard table into a csv (mainly just the horse number and odds)
-        ii. select the next row, if our index is less than the length of the rows list. repeat.
-    5. click on the track dropdown. press the down key. press enter. this will take us to the
-        next track. We'll know if there are tracks left since they show as <option/> in the html.
-        repeat this for all tracks.
-    6. decrement our date. click the calendar and check it against the month,day,year. if it's present
-        click on the previous day box. if it's not present, click the back arrow to go back a month.
-        then click the day box. repeat from step 1.
-    """
 
 if __name__ == '__main__':
     args = sys.argv[1:]
