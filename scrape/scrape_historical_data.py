@@ -188,7 +188,7 @@ def get_race_date_time(driver, row_idx):
 
 def click_show_race_card(driver, actions):
     btn = safe_find(driver, By.CSS_SELECTOR, "button[qa-label=\"showFullCardBtn\"]", num_results=1, err_msg='Error finding show race card button. Stopping.')
-    safe_click(btn[0], actions, 'show race card button', move=True)
+    safe_click(btn[0], actions, 'show race card button', move=True, retries=4 ,verbose=False)
 
 def get_results(driver, actions, race_path):
     def on_missing_results():
