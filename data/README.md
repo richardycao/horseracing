@@ -10,11 +10,18 @@ Step 3: Train a model on the training data.
 Run `python3 create_model.py X5.csv y5.csv lgb5.pkl`. args: X csv, y csv, output model file.
 
 Step 4: Use the model to predict winners of individuals races.
-Run `python3 predict_races.py bayes 2022-03-15 2022-03-27 avgs5.csv obs_bayes2_m15m27.csv rank`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, mode (1v1, rank, bayes, random)
+Run `python3 predict_races.py bayes 2022-03-15 2022-03-27 avgs5.csv obs_bayes2_m15m27.csv rank`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, mode (1v1, rank, bayes, bayes-hist random)
 
 Other tools:
 Run `python3 estimate_takeouts.py estimates.csv 2022-03-15 2022-03-26` to get takeout estimates at each park.
 Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26` to get, for h horses in a race, the winrate of the horse with the nth-lowest odds.
+
+==========
+
+I plotted the distribution of pool_size across 5k races and it comes out to be roughly lognormal. For historical data, since pool size is missing, I can generate a pool size from a lognormal distribution and run many simulations to see if I'm consistently profitable.
+
+Plot my expected returns to see if it aligns with my actual returns.
+Visualize the times that the bets were made to see if I can be awake at those times.
 
 ==========
 

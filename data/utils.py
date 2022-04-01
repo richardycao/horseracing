@@ -140,6 +140,15 @@ def are_all_csvs_present(r):
             return False
     return True
 
+def are_historical_csvs_present(r):
+    csvs = [c for c in listdir(r) if isfile(join(r, c))]
+
+    # Skips races with missing files
+    for n in ['results','racecard_left']:
+        if f'{n}.csv' not in csvs:
+            return False
+    return True
+
 # returns { '<horse_number>': <ranking 1 to n>, ... }
 def get_odds_ranks(r):
     pools = get_pools_df(r)
@@ -154,26 +163,32 @@ def get_odds_probs():
     return odds_probs
 
 # gets group stats of a race
-def get_race_stats(r):
+def get_race_stats(r, hist=False):
     stats = {}
+    d, t = get_race_date_time(r)
     park = get_park_name(r)
     results = get_results_df(r)
     left = get_racecard_left_df(r)
-    pools = get_pools_df(r)
     takeouts = get_takeout_estimates_df()
-    d, t = get_race_date_time(r)
-
     stats['date'] = d
     stats['time'] = t
     stats['winner'] = results['horse number'][0]
     stats['num_horses'] = left.shape[0]
-    stats['pool_size'] = pools['win'].sum()
+    stats['numbers'] = left['number'].to_list()
     takeout_vals = takeouts[takeouts['park'] == park]['takeout'].values
     stats['takeout'] = takeout_vals[0] if len(takeout_vals) > 0 else 0.2
-
-    stats['numbers'] = left['number'].to_list()
     nums_only = remove_dupes([n if n[-1].isdigit() else n[:-1] for n in left['number'].to_list()])
-    stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pools['win'].to_list()) }
+
+    if not hist:
+        pools = get_pools_df(r)
+        stats['pool_size'] = pools['win'].sum()
+        stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pools['win'].to_list()) }
+    else:
+        pool_fracs = left['runner odds'].apply(lambda x: 1/(eval_frac(x) + 2)).to_numpy()
+        pool_fracs = pool_fracs / np.sum(pool_fracs)
+        random_pool_size = min(10000*np.exp(np.random.normal()), 100000) # pool_size is lognormal with max of 100k
+        stats['pool_size'] = random_pool_size
+        stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pool_fracs*random_pool_size) }
 
     return stats
 
@@ -283,7 +298,7 @@ def get_race_data_v2(r, on_row):
     data = data[['number']+rankable_cols]
 
     # Method 1
-    data['runner odds rank rank'] = rankdata(data['runner odds'].to_numpy())
+    data['runner odds rank'] = rankdata(data['runner odds'].to_numpy())
     data['race morning odds rank'] = rankdata(data['race morning odds'].to_numpy())
     data['age rank'] = rankdata(data['age'].to_numpy())
     data['num races rank'] = rankdata(-data['num races'].to_numpy())

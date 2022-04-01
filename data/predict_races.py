@@ -10,6 +10,7 @@ from collections import defaultdict
 import numpy as np
 from io import StringIO
 from csv import writer
+from scipy.stats import rankdata
 
 class PredictRaces:
     def __init__(self, model_file, start_str, end_str, avgs, obs, mode):
@@ -18,13 +19,16 @@ class PredictRaces:
         self.end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
         self.obs_file = obs
         self.mode = mode
-        if mode == '1v1' or mode == 'bayes' or mode == 'random':
+        if mode == '1v1' or mode == 'bayes' or mode == 'bayes-hist' or mode == 'random':
             self.avgs = pd.read_csv(avgs)
             self.columns = utils.get_columns()
         elif mode == 'rank':
             self.columns = utils.get_columns_v2()
-
+        
         path = '../scrape/results'
+        if mode == 'bayes-hist':
+            path = '../scrape/historical_results'
+        
         dates = [f for f in listdir(path) if not isfile(join(path, f))]
         self.races = []
         self.skipped_races = 0
@@ -50,13 +54,15 @@ class PredictRaces:
         odds_probs = utils.get_odds_probs()
         for r in tqdm(self.races):
             present = utils.are_all_csvs_present(r)
+            if self.mode == 'bayes-hist':
+                present = utils.are_historical_csvs_present(r)
             if not present:
                 continue
             
-            self.df = pd.DataFrame(columns=self.columns)
-            race_stats = utils.get_race_stats(r)
-            
+            race_stats = utils.get_race_stats(r, hist=self.mode=='bayes-hist')
+
             if self.mode == 'rank':
+                self.df = pd.DataFrame(columns=self.columns)
                 left = utils.get_racecard_left_df(r)
                 success = utils.get_race_data_v2(r, on_row)
                 if not success:
@@ -68,6 +74,7 @@ class PredictRaces:
                 # scores = utils.softmax(preds[:,1])
                 horse_score = { horse: score for horse, score in zip(left['number'], scores) }
             elif self.mode == '1v1':
+                self.df = pd.DataFrame(columns=self.columns)
                 success = utils.get_race_data(r, on_row, mode='test')
                 if not success:
                     continue
@@ -109,6 +116,12 @@ class PredictRaces:
                     continue
                 # horse_odds_ranks = { horse: odds_ranks[int(utils.horse_number_digits_only(horse))] for horse in left['number'] }
                 horse_score = { horse: (odds_probs.iloc[num_horses-1, rank] if rank < odds_probs.shape[1] and num_horses-1 < odds_probs.shape[0] else 0) for horse, rank in horse_odds_ranks.items() }
+            elif self.mode == 'bayes-hist':
+                left = utils.get_racecard_left_df(r)
+                num_horses = len(left['number'])
+                left['runner odds'] = left['runner odds'].apply(lambda x: utils.eval_frac(x))
+                horse_odds_ranks = { horse: int(rank) for horse, rank in zip(left['number'].to_list(), rankdata(left['runner odds'].to_numpy())) }
+                horse_score = { horse: (odds_probs.iloc[num_horses-1, rank] if rank < odds_probs.shape[1] and num_horses-1 < odds_probs.shape[0] else 0) for horse, rank in horse_odds_ranks.items() }
             elif self.mode == 'random':
                 left = utils.get_racecard_left_df(r)
                 odds_ranks = utils.get_odds_ranks(r)
@@ -136,7 +149,7 @@ class PredictRaces:
             #     horse_score,
             #     race_stats['pools_i'],
             # ])
-        # print('bye')
+
         self.output.seek(0)
         df = pd.read_csv(self.output)
         df.to_csv(self.obs_file, index=False)
