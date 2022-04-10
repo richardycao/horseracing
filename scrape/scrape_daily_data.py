@@ -20,6 +20,8 @@ import os
 from datetime import date
 import re
 import pandas as pd
+from os import listdir
+from os.path import isfile, join
 
 import config
 
@@ -112,6 +114,10 @@ def get_race_path(browser, item_idx):
     return rp
 
 def get_details(browser, race_path):
+    csvs = [c for c in listdir(race_path) if isfile(join(race_path, c))]
+    if 'details.csv' in csvs:
+        return
+    
     details = safe_find(browser, By.CLASS_NAME, 'pp-header_race-details_list', num_results=1, retries=3)
     if not details:
         print('Error finding details. Skipping this section for path:', race_path)
@@ -133,6 +139,10 @@ def get_details(browser, race_path):
     df.to_csv(f'{race_path}/details.csv')
 
 def get_results(browser, race_path):
+    csvs = [c for c in listdir(race_path) if isfile(join(race_path, c))]
+    if 'results.csv' in csvs:
+        return
+
     results = safe_find(browser, By.CLASS_NAME, 'table.race-results.no-margin', num_results=1, retries=1)
     if not results:
         print('Error finding results. Skipping this section for path:', race_path)
@@ -155,6 +165,8 @@ def get_results(browser, race_path):
     df.to_csv(f'{race_path}/results.csv')
 
 def get_race_card(browser, race_path):
+    csvs = [c for c in listdir(race_path) if isfile(join(race_path, c))]
+    
     tabs = ['Summary', 'Snapshot', 'Speed & Class', 'Pace', 'Jockey/Trainer Stats']
 
     for i, t in enumerate(tabs):
@@ -171,6 +183,8 @@ def get_race_card(browser, race_path):
 
         html = tables[0].get_attribute('innerHTML')
         if i == 0:
+            if 'racecard_left.csv' in csvs and 'racecard_summ.csv' in csvs:
+                continue
             scratched = find_scratched(html, query='<strong ng-class="\{.{0,20}: runner.scratched\}" class="h5.{0,20}" qa-label="horse-name">')
 
             number = find_value_in_html(html, left='<span class="horse-number-label" ng-style="\{.{1,20}: runner.numberColor\}" style="color: rgb(.{1,20})\;">', right='</span></div></td>')
@@ -208,14 +222,24 @@ def get_race_card(browser, race_path):
             })
             df.to_csv(f'{race_path}/racecard_summ.csv')
         elif i == 1:
-            power_wins_daysoff = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
-            df = pd.DataFrame({
-                'power rating': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 0],
-                'wins/starts': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 1],
-                'days off': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 2],
-            })
+            if 'racecard_snap.csv' in csvs:
+                continue
+            for attempt in range(2):
+                power_wins_daysoff = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
+                try:
+                    df = pd.DataFrame({
+                        'power rating': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 0],
+                        'wins/starts': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 1],
+                        'days off': [p for i, p in enumerate(power_wins_daysoff) if i % 3 == 2],
+                    })
+                    break
+                except:
+                    print('error getting snap.')
+                    print(power_wins_daysoff)
             df.to_csv(f'{race_path}/racecard_snap.csv')
         elif i == 2:
+            if 'racecard_spee.csv' in csvs:
+                continue
             as_ad_hs_ac_lc = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
             df = pd.DataFrame({
                 'avg speed': [a for i, a in enumerate(as_ad_hs_ac_lc) if i % 5 == 0],
@@ -226,6 +250,8 @@ def get_race_card(browser, race_path):
             })
             df.to_csv(f'{race_path}/racecard_spee.csv')
         elif i == 3:
+            if 'racecard_pace.csv' in csvs:
+                continue
             races_early_mid_fin = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
             df = pd.DataFrame({
                 'num races': [r for i, r in enumerate(races_early_mid_fin) if i % 4 == 0],
@@ -235,6 +261,8 @@ def get_race_card(browser, race_path):
             })
             df.to_csv(f'{race_path}/racecard_pace.csv')
         elif i == 4:
+            if 'racecard_jock.csv' in csvs:
+                continue
             starts_1_2_3 = find_value_in_html(html, left='<strong ng-if="!runner\.scratched &amp;&amp; column\.property">', right='</strong>')
             df = pd.DataFrame({
                 'starts': [r for i, r in enumerate(starts_1_2_3) if i % 4 == 0],
@@ -270,6 +298,10 @@ def get_willpays(browser, race_path):
         f.write(willpays[0].get_attribute('innerHTML'))
 
 def get_pools(browser, race_path):
+    csvs = [c for c in listdir(race_path) if isfile(join(race_path, c))]
+    if 'pools.csv' in csvs:
+        return
+
     pools = safe_find(browser, By.CLASS_NAME, 'result-runners-table.pools-table', num_results=1, retries=1)
     if not pools:
         print('Error finding pools. Skipping this section for path:', race_path)
@@ -294,6 +326,14 @@ def get_race(browser, race_path):
     # get_willpays(browser, race_path)
     get_pools(browser, race_path)
 
+def are_all_csvs_present(r):
+    csvs = [c for c in listdir(r) if isfile(join(r, c))]
+    for n in ['details','results','racecard_left','racecard_summ','racecard_snap','racecard_spee',
+              'racecard_pace','racecard_jock','pools']:
+        if f'{n}.csv' not in csvs:
+            return False
+    return True
+
 def get_page(browser, date_path, page_idx):
     items = safe_find(browser, By.CLASS_NAME, 'replay-list__item-line', num_results=None, retries=3)
     if not items:
@@ -307,8 +347,9 @@ def get_page(browser, date_path, page_idx):
         rp = get_race_path(browser, item_idx)
         if rp:
             race_path = f'{date_path}/{rp}'
-            if not os.path.exists(race_path):
-                os.makedirs(race_path)
+            if not os.path.exists(race_path) or not are_all_csvs_present(race_path):
+                if not os.path.exists(race_path):
+                    os.makedirs(race_path)
             
                 buttons = safe_find(browser, By.CLASS_NAME, 'bt-button.bt-tertiary.bt-program-page-redirect', num_results=1, retries=1)
                 if buttons:

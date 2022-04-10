@@ -10,18 +10,94 @@ Step 3: Train a model on the training data.
 Run `python3 create_model.py X5.csv y5.csv lgb5.pkl`. args: X csv, y csv, output model file.
 
 Step 4: Use the model to predict winners of individuals races.
-Run `python3 predict_races.py bayes 2022-03-15 2022-03-27 avgs5.csv obs_bayes2_m15m27.csv rank`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, mode (1v1, rank, bayes, bayes-hist random)
+Run `python3 predict_races.py bayes 2022-03-15 2022-04-02 avgs5.csv obs_bayes2_m15a02.csv bayes`. args: model file, start_date, end_date (start and end dates are inclusive), averages file, observations file, mode (1v1, rank, bayes, bayes-hist, random)
 
 Other tools:
 Run `python3 estimate_takeouts.py estimates.csv 2022-03-15 2022-03-26` to get takeout estimates at each park.
-Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26` to get, for h horses in a race, the winrate of the horse with the nth-lowest odds.
+Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26 daily` to get, for h horses in a race, the winrate of the horse with the nth-lowest odds. args: output file, start, end, mode (daily, hist)
+
+==========
+
+Pools increase by 10x in the last minute of betting. I need to measure the changes in pool as it approaches expiration. The website updates the pools every ~20 seconds.
+- Or I need to time the bet very precisely. But bet size depends on pool size.
+- I need to predict where the pools will end up.
+
+DRF (https://www.drf.com/live_odds/winodds/track/AQU/USA/7/D) has fast load times. It's much better for quick gathering of data than TVG.
+- here's the GET url for live pools and odds: https://www.drf.com/liveOdds/tracksPoolDetails/currentRace/8/trackId/AQU/country/USA/dayEvening/D/date/4-10-2022
+
+
+==========
+
+*** I need to do cross-validation on sims and get the average returns ***
+*** Consider having a separate model for each number of horses ***
+- The model for strictly 8 horses has positive return: 1%.
+
+* create a row for each race, with each race containing 6 to 9 horses.
+* send that to colab.
+* think about how to standardize each feature in a row.
+* within colab, calculate the standardized global averages for each per-horse feature.
+* for each race, fill in empties with either the race average, or if all are missing, the global average.
+* create duplicate data using the existing code.
+
+found an issue with b_star(). I was taking max(the 2 roots), instead of min(all roots > 0).
+
+found that the odds threshold for long-term profit is implict if b_i > 0. It's still useful though because I can apply a multiplier to account for errors in estimating b_i.
+
+training an MLP on more features didn't help. Is there a way to optimize for max gains, instead of correct p_i's?
+- turns out lower val_loss doesn't correlate with better returns.
+
+If I bet q percentage of my money each bet, what odds do I have to have to breakeven?
+- This is different from betting a fixed amount each time.
+
+==========
+
+Found a closed form solution for optimal bet size.
+
+Found the threshold at which I will breakeven on a bet. if (odds_i > 1/p_i - 1)
+
+I know my probabilities (p_i's) are wrong because I'm winning a lot less than my probabilities indicate.
+
+Need to put a cap on the amount of money I bet on a race, depending on p_i and odds_i.
+
+KL-divergence might be better than cross-entropy for loss function.
+
+Try using features that are time-independent (not odds, not pools)
+
+==========
+
+*** If the return graph doesn't converge with the expected return graph, then my pi's are off. ***
+
+Most races have 6 to 10 horses. I want to train separate models for each number of horses. Use that to estimate the pi's. Start with 8. Order 8->7->6->9->10.
+
+Is there a way to find the expected number of losses before a win? It depends on what bets I make, which depends on pi's. So I shouldn't prioritize this until I'm confident in my pi's.
+
+Should I focus on place/show bets? I need to visualize how much money is available in each category.
 
 ==========
 
 I plotted the distribution of pool_size across 5k races and it comes out to be roughly lognormal. For historical data, since pool size is missing, I can generate a pool size from a lognormal distribution and run many simulations to see if I'm consistently profitable.
 
 Plot my expected returns to see if it aligns with my actual returns.
+- aligns fairly well.
 Visualize the times that the bets were made to see if I can be awake at those times.
+- they're all over the place.
+
+Understand how the pools move near race closing time. Currently, I'm using the end state of the pools. If there's someone who jumps in faster than me, then my bets will be suboptimal.
+- Even if there is someone faster than me, there are still inefficiencies that they left out.
+- What percentage of the pool is added in the last 1 minute before close? If it's small, then I can be confident in my calculations.
+
+For bayes-hist prediction, combine joint horses into 1 horse. Otherwise it messes up the rest of the odds. What if I don't divide pool_frac by sum of pool instead?
+
+I want to see how close my estimate of payout is to the actual payout.
+
+gradient descent parameters were bad - that's why I kept getting pEr > 1. I set the learning rate to 10, which is decent. I set the precision to 0.01, so it stops later.
+- One problem was that GD was exiting too early. I noticed that the bet size was always smaller than the optimal b on the graph.
+- Is it bad if I stop early? I get more pEr.
+- It used to be lr=1, precision=1. Why did that work better?
+
+What's my expected number of losses until I win 1? What my expected cash loss before I win 1? I need to return to make up for that loss.
+- The problem is that I lose too much before I win 1. If bet on place/show, I'll lose less before I win something.
+- What percent of races have place and/or show?
 
 ==========
 

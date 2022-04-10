@@ -34,7 +34,6 @@ class PredictRaces:
         self.skipped_races = 0
         for d in dates:
             if utils.time_in_range(self.start_date, self.end_date, dt.datetime.strptime(d, "%Y-%m-%d")):
-                print(d)
                 self.races.extend([f'{path}/{d}/{r}' for r in listdir(f'{path}/{d}') if not isfile(join(f'{path}/{d}', r))])
 
         self.output = StringIO()

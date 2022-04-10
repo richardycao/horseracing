@@ -1,4 +1,3 @@
-from multiprocessing import pool
 from os import listdir
 from os.path import isfile, join
 import pandas as pd
@@ -159,7 +158,7 @@ def get_odds_ranks(r):
     return { sorted_pools['horse_number_int'][i]:sorted_pools['odds_rank'][i] for i in range(sorted_pools.shape[0])}
 
 def get_odds_probs():
-    odds_probs = pd.read_csv('odds_probs.csv')
+    odds_probs = pd.read_csv('odds_probs2.csv')
     return odds_probs
 
 # gets group stats of a race
@@ -184,12 +183,23 @@ def get_race_stats(r, hist=False):
         stats['pool_size'] = pools['win'].sum()
         stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pools['win'].to_list()) }
     else:
-        pool_fracs = left['runner odds'].apply(lambda x: 1/(eval_frac(x) + 2)).to_numpy()
+        seen_nums = set()
+        unique_horse_nums = [] # get 1 horse for each number. 1,1A,2A,3 becomes 1,2A,3.
+        for num in left['number']:
+            digits_only = horse_number_digits_only(num)
+            if digits_only not in seen_nums:
+                unique_horse_nums.append(num)
+                seen_nums.add(digits_only)
+        pool_fracs = left[left['number'].isin(unique_horse_nums)]['runner odds'].apply(lambda x: 1/((1-stats['takeout'])*(eval_frac(x) + 1))).to_numpy()
+        
         pool_fracs = pool_fracs / np.sum(pool_fracs)
         random_pool_size = min(10000*np.exp(np.random.normal()), 100000) # pool_size is lognormal with max of 100k
         stats['pool_size'] = random_pool_size
         stats['pools_i'] = { str(k):v for k,v in zip(nums_only, pool_fracs*random_pool_size) }
-
+    # if len(stats['pools_i']) != len(stats['numbers']):
+    #     print(left)
+    #     print(stats)
+    
     return stats
 
 def softmax(x):
