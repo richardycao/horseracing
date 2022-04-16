@@ -3,6 +3,7 @@ import json
 import gzip, zlib
 import datetime as dt
 import pandas as pd
+from tqdm import tqdm
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -26,11 +27,13 @@ def setup():
 # getRaceProgram - for pools data
 # getRacesMtpStatus - for MTP updates on the schedule
 
-def open_url_in_new_tab(driver, url):
+def open_url_in_new_tab(driver, url, state):
+    state['num_tabs'] += 1
     driver.execute_script(f"window.open(\"{url}\");")
 def switch_to_tab(driver, tab_idx):
     driver.switch_to.window(driver.window_handles[tab_idx])
-def close_current_tab(driver):
+def close_current_tab(driver, state):
+    state['num_tabs'] -= 1
     driver.close()
 
 def get_request_body(request):
@@ -40,54 +43,15 @@ def get_response_headers(request):
 def get_response_body(request):
     return json.loads(str(zlib.decompress(bytes(request.response.body), 15+32), 'utf-8'))
 
-# def poll_data_v1(driver, timeout=30):
-#     i = 0
-#     start_time = dt.datetime.now()
-#     while dt.datetime.now() - start_time <= dt.timedelta(minutes=timeout):
-#         while i < len(driver.requests):
-#             request = driver.requests[i]
-#             if request.response:
-#                 if 'service.tvg.com/graph/v2/query' in request.url:
-#                     operationName = get_request_body(request)['operationName']
-#                     if operationName == 'getRaceResults':
-#                         # close the tab
-#                         # add this race_id to race_ids_closed
-#                         return
-#                     if operationName == 'getRaceProgram':
-#                         body = get_response_body(request)
-#                         race = body['data']['race']
-#                         if race['racePools'] == None:
-#                             continue
-#                         pools = {}
-#                         # get 'win' id
-#                         win_id = -1
-#                         for rp in race['racePools']:
-#                             if rp['wagerType']['name'] == 'Win':
-#                                 win_id = rp['wagerType']['id']
-#                         # get win pool for each horse
-#                         for horse in race['bettingInterests']:
-#                             horse_number = horse['biNumber']
-#                             if horse['biPools'] == None:
-#                                 continue
-#                             horse_pool = 0
-#                             for bp in horse['biPools']:
-#                                 if bp['wagerType']['id'] == win_id:
-#                                     horse_pool = bp['poolRunnersData'][0]['amount']
-#                             pools[horse_number] = horse_pool
-#                         print(dt.datetime.now())
-#                         print(pools)
-#             i += 1
-#         time.sleep(5)
-
-def get_latest_races(driver, i, races_info, mtp_threshold=5):
+def get_latest_races(driver, races_info, state, mtp_threshold=5):
     print('=== get latest races ===')
     found_races_for_this_interval = False
     num_requests = len(driver.requests)
-    while i[0] < num_requests:
-        request = driver.requests[i[0]]
-        i[0] += 1
+    while state['schedule_requests_idx'] < num_requests:
+        request = driver.requests[state['schedule_requests_idx']]
+        state['schedule_requests_idx'] += 1
         if found_races_for_this_interval:
-            i[0] = num_requests
+            state['schedule_requests_idx'] = num_requests
             break
         if request.response:
             if 'service.tvg.com/graph/v2/query' in request.url:
@@ -98,27 +62,26 @@ def get_latest_races(driver, i, races_info, mtp_threshold=5):
                     for race in races:
                         race_id = f"{race['trackCode']}-{race['number']}"
                         if race['mtp'] <= mtp_threshold and race_id not in races_info:
-                            print('new race:', race_id)
+                            print(f'new race: {race_id}, mtp: {race["mtp"]}')
                             track_name = ''.join(race['trackName'].lower().split(' '))
                             races_info[race_id] = {
                                 'status': 'new',
                                 'url': f"https://www.tvg.com/racetracks/{race['trackCode']}/{track_name}?race={race['number']}",
+                                'time_of_last_data': None,
+                                'tab_idx': None,
                             }
                     found_races_for_this_interval = True
 
 # I need to keep track of the order of races in tabs.
-def open_latest_tabs(driver, races_info, tabs_list):
+def open_latest_tabs(driver, races_info, state):
     print('=== open latest tabs ===')
     for race_id, info in races_info.items():
         if info['status'] == 'new':
-            print('opened tab for race_id:', race_id)
-            open_url_in_new_tab(driver, info['url'])
-            tabs_list.append({
-                'requests_idx': 0,
-                'race_id': race_id,
-                'time_of_last_data': None,
-            })
+            print('opened tab for race_id:', race_id, info['url'])
+            open_url_in_new_tab(driver, info['url'], state)
             races_info[race_id]['status'] = 'open'
+            state['tabs_to_raceId'].append(race_id)
+            # races_info[race_id]['tab_idx'] = state['num_tabs'] - 1
     switch_to_tab(driver, 0)
 
 """
@@ -131,165 +94,102 @@ do all tabs share the same requests list? I think so.
 - for polling, I only need to loop through all the driver.requests once, since they're all shared.
 - when I find a race that needs to be closed, I record the race_id.
 - at the end, I'll get the tab_idx's to be closed from the list of race_id's.
-"""
 
-# add timeout after last datapoint if getRaceResults doesn't show up.
-# def poll_data_v2(driver, races_info, tabs_list, timeout=5):
-#     print('=== polling data ===')
-#     tabs_to_close = []
-#     for t in range(len(tabs_list)):
-#         tab_idx = t + 1
-#         if tabs_list[t]['time_of_last_data'] == None:
-#             tabs_list[t]['time_of_last_data'] = dt.datetime.now()
-#         if dt.datetime.now() - tabs_list[t]['time_of_last_data'] > dt.timedelta(minutes=timeout):
-#             # add this race_id to race_ids_closed
-#             race_id = tabs_list[t]['race_id']
-#             races_info[race_id]['status'] = 'closed'
-#             # add tab_idx to the to-close list
-#             tabs_to_close.append(tab_idx)
-#             continue
-        
-#         print('tab:', tab_idx)
-#         switch_to_tab(driver, tab_idx)
-#         num_requests = len(driver.requests)
-#         print('num requests:', num_requests)
-#         for k in range(tabs_list[t]['requests_idx'], num_requests):
-#             request = driver.requests[k]
-#             if request.response:
-#                 if 'service.tvg.com/graph/v2/query' in request.url:
-#                     operationName = get_request_body(request)['operationName']
-#                     if operationName == 'getRaceResults':
-#                         # add this race_id to race_ids_closed
-#                         race_id = tabs_list[t]['race_id']
-#                         races_info[race_id]['status'] = 'closed'
-#                         # add tab_idx to the to-close list
-#                         tabs_to_close.append(tab_idx)
-#                         break
-#                     if operationName == 'getRaceProgram':
-#                         tabs_list[t]['time_of_last_data'] = dt.datetime.now()
-#                         body = get_response_body(request)
-#                         race = body['data']['race']
-#                         if race['racePools'] == None:
-#                             continue
-#                         pools = {}
-#                         # get 'win' id
-#                         win_id = -1
-#                         for rp in race['racePools']:
-#                             if rp['wagerType']['name'] == 'Win':
-#                                 win_id = rp['wagerType']['id']
-#                         # get win pool for each horse
-#                         for horse in race['bettingInterests']:
-#                             horse_number = horse['biNumber']
-#                             if horse['biPools'] == None:
-#                                 continue
-#                             horse_pool = 0
-#                             for bp in horse['biPools']:
-#                                 if bp['wagerType']['id'] == win_id:
-#                                     horse_pool = bp['poolRunnersData'][0]['amount']
-#                             pools[horse_number] = horse_pool
-#                         resp_headers = get_response_headers(request)
-#                         resp_dt = dt.datetime.strptime(resp_headers['Date'].split(', ')[1][:-4], '%d %b %Y %H:%M:%S') - dt.timedelta(hours=7)
-#                         print('   ', resp_dt, '|', race['track']['name'])
-#                         print('   ', pools)
-#         tabs_list[t]['requests_idx'] = num_requests
-    
-#     for tab_idx in reversed(tabs_to_close):
-#         del tabs_list[tab_idx-1]
-#         print('closing,', tab_idx)
-#         switch_to_tab(driver, tab_idx)
-#         close_current_tab(driver)
-#     switch_to_tab(driver, 0)
-
-"""
 need 1 requests_idx.
 { race_id: { tab_idx, time_of_last_data, } }
+
+when I close a tab, I need to update the tab_idx somehow. It's better to maintain
+a list of tabs.
+
+It's slowing down the longer I go. probably because the requests are adding up.
+If I close a tab, do the requests stay? Or do they get deleted and I have to update the 
+    poll_requests_index?
+    - seems like they stay because they were showing up even after I deleted the tab since was some
+      delay between registering the tab to be deleted and actually deleting it.
+
+I can try making the request myself (unlikely to work). Ok it works now.
+- I don't have to be authenticated, so what's blocking me from making the request?
+I can try 
 """
-def poll_data(driver, races_info, tabs_list, timeout=5):
+def poll_data(driver, races_info, state):
     print('=== polling data ===')
     tabs_to_close = []
-    for t in range(len(tabs_list)):
-        tab_idx = t + 1
-        if tabs_list[t]['time_of_last_data'] == None:
-            tabs_list[t]['time_of_last_data'] = dt.datetime.now()
-        if dt.datetime.now() - tabs_list[t]['time_of_last_data'] > dt.timedelta(minutes=timeout):
-            # add this race_id to race_ids_closed
-            race_id = tabs_list[t]['race_id']
-            races_info[race_id]['status'] = 'closed'
-            # add tab_idx to the to-close list
-            tabs_to_close.append(tab_idx)
-            continue
-        
-        print('tab:', tab_idx)
-        switch_to_tab(driver, tab_idx)
-        num_requests = len(driver.requests)
-        print('num requests:', num_requests)
-        for k in range(tabs_list[t]['requests_idx'], num_requests):
-            request = driver.requests[k]
-            if request.response:
-                if 'service.tvg.com/graph/v2/query' in request.url:
-                    operationName = get_request_body(request)['operationName']
-                    if operationName == 'getRaceResults':
-                        # add this race_id to race_ids_closed
-                        race_id = tabs_list[t]['race_id']
+
+    num_requests = len(driver.requests)
+    print(f"k: {state['poll_requests_idx']}, num_requests: {num_requests}")
+    for k in range(state['poll_requests_idx'], num_requests):
+        request = driver.requests[k]
+        if request.response:
+            if 'service.tvg.com/graph/v2/query' in request.url:
+                operationName = get_request_body(request)['operationName']
+                if operationName == 'getRaceResults':
+                    body = get_response_body(request)
+                    race_id = f"{body['data']['race']['track']['code']}-{body['data']['race']['number']}"
+                    # add this race_id to race_ids_closed
+                    if races_info[race_id]['status'] == 'open':
                         races_info[race_id]['status'] = 'closed'
                         # add tab_idx to the to-close list
-                        tabs_to_close.append(tab_idx)
-                        break
-                    if operationName == 'getRaceProgram':
-                        tabs_list[t]['time_of_last_data'] = dt.datetime.now()
-                        body = get_response_body(request)
-                        race = body['data']['race']
-                        if race['racePools'] == None:
+                        for t, tab_race_id in enumerate(state['tabs_to_raceId']):
+                            if tab_race_id == race_id:
+                                tabs_to_close.append(t+1)
+                                break
+                        # tabs_to_close.append(races_info[race_id]['tab_idx'])
+                if operationName == 'getRaceProgram':
+                    body = get_response_body(request)
+                    race = body['data']['race']
+                    race_id = f"{race['track']['code']}-{race['number']}"
+                    races_info[race_id]['time_of_last_data'] = dt.datetime.now()
+                    if race['racePools'] == None:
+                        continue
+                    pools = {}
+                    # get 'win' id
+                    win_id = -1
+                    for rp in race['racePools']:
+                        if rp['wagerType']['name'] == 'Win':
+                            win_id = rp['wagerType']['id']
+                    # get win pool for each horse
+                    for horse in race['bettingInterests']:
+                        horse_number = horse['biNumber']
+                        if horse['biPools'] == None:
                             continue
-                        pools = {}
-                        # get 'win' id
-                        win_id = -1
-                        for rp in race['racePools']:
-                            if rp['wagerType']['name'] == 'Win':
-                                win_id = rp['wagerType']['id']
-                        # get win pool for each horse
-                        for horse in race['bettingInterests']:
-                            horse_number = horse['biNumber']
-                            if horse['biPools'] == None:
-                                continue
-                            horse_pool = 0
-                            for bp in horse['biPools']:
-                                if bp['wagerType']['id'] == win_id:
-                                    horse_pool = bp['poolRunnersData'][0]['amount']
-                            pools[horse_number] = horse_pool
-                        resp_headers = get_response_headers(request)
-                        resp_dt = dt.datetime.strptime(resp_headers['Date'].split(', ')[1][:-4], '%d %b %Y %H:%M:%S') - dt.timedelta(hours=7)
-                        print('   ', resp_dt, '|', race['track']['name'])
-                        print('   ', pools)
-        tabs_list[t]['requests_idx'] = num_requests
+                        horse_pool = 0
+                        for bp in horse['biPools']:
+                            if bp['wagerType']['id'] == win_id:
+                                horse_pool = bp['poolRunnersData'][0]['amount']
+                        pools[horse_number] = horse_pool
+                    resp_headers = get_response_headers(request)
+                    resp_dt = dt.datetime.strptime(resp_headers['Date'].split(', ')[1][:-4], '%d %b %Y %H:%M:%S') - dt.timedelta(hours=7)
+                    print(f"    {resp_dt} | {race['track']['name']} | {k}")
+                    print(f"    {pools}")
+    state['poll_requests_idx'] = num_requests
     
-    for tab_idx in reversed(tabs_to_close):
-        del tabs_list[tab_idx-1]
+    for tab_idx in sorted(tabs_to_close, key=lambda x: -x):
         print('closing,', tab_idx)
         switch_to_tab(driver, tab_idx)
-        close_current_tab(driver)
+        close_current_tab(driver, state)
     switch_to_tab(driver, 0)
+
+"""
+maintain a tabs_list that maps tab_idx to race_id
+whenever I encounter getRaceResults, get the race_id
+"""
 
 def main():
     driver = setup()
-    # poll_data(driver)
 
-    # find new races
-    # open a new tab for each race
-    # loop through each tab to get updates.
-
-    schedule_requests_idx = [0]
-
-    # for each tab, store the request index, the race_id, and the time of last data point.
-    tabs_list = []
-    # new, open, closed
     races_info = {}
+    state = {
+        'num_tabs': 1,
+        'tabs_to_raceId': [],
+        'schedule_requests_idx': 0,
+        'poll_requests_idx': 0,
+    }
     while True:
         start_time = dt.datetime.now()
-        get_latest_races(driver, schedule_requests_idx, races_info)
-        open_latest_tabs(driver, races_info, tabs_list)
-        poll_data(driver, races_info, tabs_list)
-        while dt.datetime.now() - start_time < dt.timedelta(seconds=5):
+        get_latest_races(driver, races_info, state)
+        open_latest_tabs(driver, races_info, state)
+        poll_data(driver, races_info, state)
+        while dt.datetime.now() - start_time < dt.timedelta(seconds=15):
             pass
 
 if __name__ == "__main__":

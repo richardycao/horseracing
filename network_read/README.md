@@ -1,4 +1,35 @@
 
+======
+
+Plan:
+
+under each directory of date/track/number:
+- real-time pools csv:
+    - have a csv for each race, organized by date/track/number.
+    - each row is a data point of pools
+- daily data:
+    - everything from getRaceResults.
+        - details
+        - results
+        - racecard
+        - pools
+        - (maybe) probables
+        - (maybe) will pays
+        - anything else
+
+For real-time pools data, gather enough days of data.
+- For each csv, I need to clean it to have data points fall on intervals (0,15,30,45).
+- See if I can predict future pools, given race info.
+    - This means I'll need to include all of the other information about the race.
+    - I need to store the race program info alongside the real-time pools data.
+
+======
+
+`read.py` (don't use) opens the races in chrome tabs and listens to the requests. It's very slow.
+`read2.py` calls the APIs directly and is very clean.
+
+======
+
 Have a tab open on the race schedule. Every time `getLHNRaces` or `getRacesMtpStatus` request is made, get the up-to-date list of races with <60 MTP. The response will include the track_id, track name, and race number for each race.
 - Use those 3 values to get the race program URL. Open a new tab with that URL and start polling for races.
 
