@@ -1,4 +1,7 @@
 
+`cd horseracing/network_read`
+`python3 read2.py`
+
 ======
 
 Plan:
@@ -22,6 +25,23 @@ For real-time pools data, gather enough days of data.
 - See if I can predict future pools, given race info.
     - This means I'll need to include all of the other information about the race.
     - I need to store the race program info alongside the real-time pools data.
+
+what happens if I call getRaceResults before the race has finished?
+- I want to know if there is an indication of a race being finished. That way I know when to stop
+    getting real-time pool data for a race and get all of the race program data at the end.
+
+I have to think about which data is changing in real-time and which data will be the same throughout.
+
+every 10 seconds, run
+- get latest races
+    - (only do this later for online mode) whenever I onboard a new race, get the race program info.
+- get live race data
+    - if results is not null, then save the live df to date/track/number when the race is closed.
+        - close the race and get the final race program info and save it to csv.
+    - each sample is a row in the dataframe for a race. I need to maintain a dataframe for each race.
+    
+
+
 
 ======
 
