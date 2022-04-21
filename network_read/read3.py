@@ -48,7 +48,7 @@ def df_to_s3(s3, path, df):
         exit(1)
     s3.Object(bucket, path).put(Body=csv_buffer.getvalue())
 
-def get_latest_races(mtp_threshold=5) -> list[tuple]:
+def get_latest_races(mtp_threshold=5):
     resp = api.getRacesMtpStatus()
     return [(r['trackCode'], r['number']) for r in resp['data']['mtpRaces'] if r['mtp'] <= mtp_threshold]
 
