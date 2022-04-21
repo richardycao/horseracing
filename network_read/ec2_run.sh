@@ -1,0 +1,1 @@
+python3 ./horseracing/network_read/read3.py

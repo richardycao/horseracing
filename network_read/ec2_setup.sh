@@ -11,5 +11,3 @@ git clone https://github.com/richardycao/horseracing.git
 
 export AWS_ACCESS_KEY=
 export AWS_SECRET_ACCESS_KEY=
-
-python3 ./horseracing/network_read/read3.py
