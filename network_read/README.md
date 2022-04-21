@@ -5,6 +5,13 @@
 `read.py` - old version that scrapes from the webpage.
 `read2.py` - default
 `read3.py` - writes to s3
+- connect to EC2
+- run `screen` to open a new screen.
+- run `python3 ./horseracing/network_read/read3.py`
+- press ctrl+A, then press d. this detaches the screen I just opened and lets it run in the background.
+- I can now safely cut the connection with the ec2 instance and the program should continue to run.
+- run `screen -r` to resume the session with the program. all the output should be there.
+- more about screen: https://stackoverflow.com/questions/32500498/how-to-make-a-process-run-on-aws-ec2-even-after-closing-the-local-machine
 
 ======
 
