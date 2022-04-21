@@ -4,12 +4,9 @@ import pandas as pd
 from pathlib import Path
 import enum
 import json
-
-"""
-Periodically make requests to get the most recent races.
-Make pool requests to each of the open races.
-
-"""
+from io import StringIO  # python3 (or BytesIO for python2)
+import boto3
+import os
 
 def safe_get(d: dict, keys: list):
     result = d
@@ -29,7 +26,7 @@ def safe_float(s):
 def create_date_path(year, month, day):
     return f"{year}-{month}-{day}"
 def create_race_path(date, track_id, race_number):
-    return f"./data/{date}/{track_id}/{race_number}"
+    return f"{date}/{track_id}/{race_number}"
 def should_skip_race(race):
     # Checks if race has 1A
     bis = safe_get(race, ['bettingInterests'])
@@ -42,6 +39,14 @@ def should_skip_race(race):
     return False
 def err(msg, track_id, race_number):
     print(f'    Error on {track_id}-{race_number}: {msg}')
+def df_to_s3(s3, path, df):
+    bucket = 'richardycao-horseracing'
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer)
+    if 'AWS_ACCESS_KEY' not in os.environ or 'AWS_SECRET_ACCESS_KEY' not in os.environ:
+        print('    Error: AWS credentials not found in environment variables.')
+        exit(1)
+    s3.Object(bucket, path).put(Body=csv_buffer.getvalue())
 
 def get_latest_races(mtp_threshold=5) -> list[tuple]:
     resp = api.getRacesMtpStatus()
@@ -133,7 +138,7 @@ def get_live_race_data(track_id: str, race_number: str, open_race):
         return post_dt, RaceStatus.closed
     return None, RaceStatus.open
 
-def get_static_race_data(track_id: str, race_number: str, race_path: str):
+def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
     resp = api.getRaceProgram(track_id=track_id, race_number=race_number, live=False)
     race = safe_get(resp, ['data','race'])
     if race == None:
@@ -167,7 +172,7 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str):
         race_data[f'{code}_maxWagerAmount'] = [safe_get(wt, ['maxWagerAmount'])]
         race_data[f'{code}_minWagerAmount'] = [safe_get(wt, ['minWagerAmount'])]
         # race_data[f'{code}_wagerAmounts'] = str([safe_get(wt, ['wagerAmounts'])]) # this is a list
-    pd.DataFrame(race_data).to_csv(f'{race_path}/static_race.csv')
+    df_to_s3(s3, f'{race_path}/static_race.csv', pd.DataFrame(race_data))
 
     # horse info
     # get the number of horses
@@ -231,6 +236,7 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str):
             break # break since we only take 1 runner for each bi - ignore races with 1As.
 
     # race['results']. it's null if the race hasn't finished yet.
+
     # race['results']['payoff'] - skip since it's redundant in race['result']['runners'].
     # for payoff in race['results']['payoff']:
     #     biNum = payoff['selections']['selection']
@@ -268,10 +274,15 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str):
     #     for bi in wp['payouts']:
     #         bi['bettingInterestNumber']
     #         bi['payoutAmount']
-    pd.DataFrame.from_dict(bis, orient='index').to_csv(f'{race_path}/static_bi.csv')
+    df_to_s3(s3, f'{race_path}/static_bi.csv', pd.DataFrame.from_dict(bis, orient='index'))
 
 def main():
     open_races = {}
+
+    s3 = boto3.resource('s3',
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
+
     while True:
         # Get new races
         start_time = dt.datetime.now()
@@ -304,11 +315,9 @@ def main():
             elif status == RaceStatus.closed:
                 date_path = create_date_path(race_dt.year, race_dt.month, race_dt.day)
                 race_path = create_race_path(date_path, track_id, race_number)
-                safe_makedir(race_path)
-                # write the df to race_path.
-                open_races[race_id]['df'].to_csv(f"{race_path}/live.csv")
+                df_to_s3(s3, f"{race_path}/live.csv", open_races[race_id]['df'])
                 # call get_static_race_data and save that to race_path too.
-                get_static_race_data(track_id, race_number, race_path)
+                get_static_race_data(track_id, race_number, race_path, s3)
                 # remove the race_id from open races.
                 races_to_remove.append(race_id)
                 print(f'  closing race {track_id} {race_number}')

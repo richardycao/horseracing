@@ -2,6 +2,25 @@
 `cd horseracing/network_read`
 `python3 read2.py`
 
+`read.py` - old version that scrapes from the webpage.
+`read2.py` - default
+`read3.py` - writes to s3
+
+======
+
+I need to detect 1A and stuff within get_live_race_data. If I find one, I need to return and remove the race from open_races.
+
+One idea is to include win, place, and show pools into features.
+
+Add timeout for each open race.
+
+Look into running the code on EC2. Should be cheap.
+- Think about how to restart if the program crashes.
+- Find out how to start the code at 1 AM each day and stop at 11:30 PM.
+Find out how to save csvs directly to S3.
+Make sure that the gathered data is valid.
+
+
 ======
 
 Plan:
@@ -39,9 +58,6 @@ every 10 seconds, run
     - if results is not null, then save the live df to date/track/number when the race is closed.
         - close the race and get the final race program info and save it to csv.
     - each sample is a row in the dataframe for a race. I need to maintain a dataframe for each race.
-    
-
-
 
 ======
 
