@@ -26,7 +26,7 @@ def safe_float(s):
 def create_date_path(year, month, day):
     return f"{year}-{month}-{day}"
 def create_race_path(date, track_id, race_number):
-    return f"{date}/{track_id}/{race_number}"
+    return f"v1/{date}/{track_id}/{race_number}"
 def should_skip_race(race):
     # Checks if race has 1A
     bis = safe_get(race, ['bettingInterests'])
@@ -50,6 +50,8 @@ def df_to_s3(s3, path, df):
 
 def get_latest_races(mtp_threshold=5):
     resp = api.getRacesMtpStatus()
+    if resp == None:
+        return None
     return [(r['trackCode'], r['number']) for r in resp['data']['mtpRaces'] if r['mtp'] <= mtp_threshold]
 
 class RaceStatus(enum.Enum):
@@ -59,6 +61,9 @@ class RaceStatus(enum.Enum):
 # Uses on_row to update the open_race. Returns value indicating if the results are out yet.
 def get_live_race_data(track_id: str, race_number: str, open_race):
     resp = api.getRaceProgram(track_id=track_id, race_number=race_number, live=True)
+    if resp == None:
+        err('getRaceProgram failed.', track_id, race_number)
+        return None, RaceStatus.open
     race = safe_get(resp, ['data','race'])
     if race == None:
         err('race is missing.', track_id, race_number)
@@ -140,6 +145,9 @@ def get_live_race_data(track_id: str, race_number: str, open_race):
 
 def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
     resp = api.getRaceProgram(track_id=track_id, race_number=race_number, live=False)
+    if resp == None:
+        err('static getRaceProgram failed.', track_id, race_number)
+        return
     race = safe_get(resp, ['data','race'])
     if race == None:
         err('static race is missing.', track_id, race_number)
@@ -290,6 +298,8 @@ def main():
         # need to add a timeout for each race incase it never ggets removed. timeout = 30 minutes, whic is 12*30=360 data points.
         # postTime is when the race starts!!!
         races_list = get_latest_races()
+        if races_list == None:
+            print("  couldn't find latest races. skipping this cycle.")
         # a race may be removed from this list before results arrive. Need to get results after that.
         did_open_races_change = False
         for track_id, race_number in races_list:

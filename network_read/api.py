@@ -22,11 +22,14 @@ getRacesMtpStatus_payload = {
     }
 }
 def getRacesMtpStatus():
-    url = 'https://service.tvg.com/graph/v2/query'
-    resp = requests.post(url, data=json.dumps(getRacesMtpStatus_payload))
-    # print(resp.status_code)
-    resp = json.loads(resp.text)
-    return resp
+    try:
+        url = 'https://service.tvg.com/graph/v2/query'
+        resp = requests.post(url, data=json.dumps(getRacesMtpStatus_payload))
+        # print(resp.status_code)
+        resp = json.loads(resp.text)
+        return resp
+    except:
+        return None
 
 ##### getRaceProgram #####
 
@@ -114,13 +117,16 @@ def getRaceProgramStatic_payload(track_id: str, race_number: str):
     }
 def getRaceProgram(track_id: str, race_number: str, live=False):
     url = 'https://service.tvg.com/graph/v2/query'
-    if live:
-        resp = requests.post(url, data=json.dumps(getRaceProgramLive_payload(track_id, race_number)))
-    else:
-        resp = requests.post(url, data=json.dumps(getRaceProgramStatic_payload(track_id, race_number)))
-    # print(resp.status_code)
-    resp = json.loads(resp.text)
-    return resp
+    try:
+        if live:
+            resp = requests.post(url, data=json.dumps(getRaceProgramLive_payload(track_id, race_number)))
+        else:
+            resp = requests.post(url, data=json.dumps(getRaceProgramStatic_payload(track_id, race_number)))
+        # print(resp.status_code)
+        resp = json.loads(resp.text)
+        return resp
+    except:
+        return None
 
 # getPastRaces
 
