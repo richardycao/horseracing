@@ -43,11 +43,12 @@ class CreateData:
             for r in tqdm(self.races):
                 s = utils.create_data2(r, on_row, num_horses_limit=num_horses)
         elif self.mode == 'v3':
-            num_horses = 8
+            num_horses = 9
             csv_columns_row = utils.get_columns3(num_horses=num_horses)
             self.csv_writer.writerow(csv_columns_row)
             for r in tqdm(self.races):
-                s = utils.create_data3(r, on_row, num_horses_limit=num_horses, exact=True)
+                # print(r)
+                s = utils.create_data3(r, on_row, num_horses_limit=num_horses, exact=False)
         else:
             print(f'Invalid mode: {self.mode}')
             return

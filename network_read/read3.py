@@ -23,8 +23,8 @@ def safe_float(s):
         return float(s)
     except ValueError:
         return None
-def create_date_path(year, month, day):
-    return f"{year}-{month}-{day}"
+def create_date_path(race_dt):
+    return race_dt.strftime('%Y-%m-%d')
 def create_race_path(date, track_id, race_number):
     return f"v1/{date}/{track_id}/{race_number}"
 def should_skip_race(race):
@@ -207,7 +207,11 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
             bis[biNum] = {}
         bis[biNum]['morningLineOdds_numerator'] = safe_get(bi, ['morningLineOdds','numerator'])
         bis[biNum]['morningLineOdds_denominator'] = safe_get(bi, ['morningLineOdds','denominator'])
-        for bi_horse in bi['runners']:
+        biRunners = safe_get(bi, ['runners'])
+        if biRunners == None:
+            err('static bi runners is missing.', track_id, race_number)
+            continue
+        for bi_horse in biRunners:
             bis[biNum]['runnerId'] = safe_get(bi_horse, ['runnerId'])
             bis[biNum]['scratched'] = safe_get(bi_horse, ['scratched'])
             bis[biNum]['birthday'] = safe_get(bi_horse, ['dob'])
@@ -257,7 +261,10 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
         err('static runners is missing.', track_id, race_number)
         return
     for runner in runners:
-        biNum = runner['biNumber']
+        biNum = safe_get(runner, ['biNumber'])
+        if biNum == None:
+            err('static runner biNumber is missing.', track_id, race_number)
+            continue
         bis[biNum]['runnerNumber'] = safe_get(runner, ['runnerNumber'])
         bis[biNum]['runnerName'] = safe_get(runner, ['runnerName'])
         bis[biNum]['finishPosition'] = safe_get(runner, ['finishPosition'])
@@ -323,7 +330,7 @@ def main():
                 races_to_remove.append(race_id)
                 print(f'  race {track_id} {race_number} has timed out. skipping.')
             elif status == RaceStatus.closed:
-                date_path = create_date_path(race_dt.year, race_dt.month, race_dt.day)
+                date_path = create_date_path(race_dt)
                 race_path = create_race_path(date_path, track_id, race_number)
                 df_to_s3(s3, f"{race_path}/live.csv", open_races[race_id]['df'])
                 # call get_static_race_data and save that to race_path too.

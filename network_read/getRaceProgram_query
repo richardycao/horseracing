@@ -1,0 +1,361 @@
+query getRaceProgram($trackAbbr: String, 
+                     $raceNumber: String, 
+                     $wagerProfile: String, 
+                     $withRaces: Boolean!, 
+                     $withResults: Boolean!, 
+                     $withBettingInterests: Boolean!, 
+                     $withLateChanges: Boolean!, 
+                     $withProbables: Boolean!, 
+                     $withPools: Boolean!, 
+                     $withWagerTypes: Boolean!, 
+                     $withHandicapping: Boolean!, 
+                     $withDetails: Boolean!, 
+                     $withWillPays: Boolean!, 
+                     $withBiPools: Boolean!, 
+                     $isGreyhound: Boolean!, 
+                     $product: String, 
+                     $brand: String) {
+    race(track: $trackAbbr, number: $raceNumber, profile: $wagerProfile) {
+        number
+        mtp
+        tvgRaceId
+        postTime
+        status {
+            code
+            __typename
+        }
+        promos(product: $product, brand: $brand) {
+            rootParentPromoID
+            isAboveTheLine
+            promoPath
+            isPromoTagShown
+            __typename
+        }
+        isGreyhound
+        ...detailsFragment @include(if: $withDetails)
+        track {
+            name
+            code
+            perfAbbr
+            featured
+            trackDataSource
+            location {
+                    country
+                __typename
+            }
+            ...racesFragment @include(if: $withRaces)
+            __typename
+        }
+        ...poolsFragment @include(if: $withPools)
+        ...probablesFragment @include(if: $withProbables)
+        ...bettingInterestsFragment @include(if: $withBettingInterests)
+        ...lateChangesFragment @include(if: $withLateChanges)
+        ...resultsFragment @include(if: $withResults)
+        ...wagerTypesFragment @include(if: $withWagerTypes)
+        ...willPaysFragment @include(if: $withWillPays)
+        __typename
+    }
+}
+fragment detailsFragment on Race {
+    description
+    distance
+    purse
+    numRunners
+    surface {
+        id
+        name
+        defaultCondition
+        __typename
+    }
+    type {
+        id
+        code
+        name
+        __typename
+    }
+    claimingPrice
+    raceClass {
+        id
+        name
+        __typename
+    }
+    video {
+        liveStreaming
+        onTvg
+        onTvg2
+        hasReplay
+        replays
+        streams
+        replayFileName
+        isStreamHighDefinition
+        flashAvailable
+        mobileAvailable
+        __typename
+    }
+    __typename
+}
+fragment racesFragment on Track {
+    races(filter: {isGreyhound: $isGreyhound}, sort: {byPostTime: ASC}) {
+        number
+        bettingInterests {
+            biNumber
+            saddleColor
+            favorite
+            numberColor
+            currentOdds {
+                numerator
+                denominator
+                __typename
+            }
+            morningLineOdds {
+                numerator
+                denominator
+                __typename
+            }
+            runners {
+                horseName
+                jockey
+                runnerId
+                scratched
+                dob
+                __typename
+            }
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment handicappingFragment on Runner {
+    horseName
+    jockey
+    trainer
+    ownerName
+    weight
+    med
+    ownerName
+    sire
+    damSire
+    dam
+    age
+    sex
+    handicapping {
+        speedAndClass {
+            avgClassRating
+            highSpeed
+            avgSpeed
+            lastClassRating
+            avgDistance
+            __typename
+        }
+        averagePace {
+            finish
+            numRaces
+            middle
+            early
+            __typename
+        }
+        jockeyTrainer {
+            places
+            jockeyName
+            trainerName
+            shows
+            wins
+            starts
+            __typename
+        }
+        snapshot {
+            powerRating
+            daysOff
+            horseWins
+            horseStarts
+            __typename
+        }
+        freePick {
+            number
+            info
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment bettingInterestsFragment on Race {
+    bettingInterests {
+        biNumber
+        saddleColor
+        numberColor
+        ...biPoolsFragment @include(if: $withBiPools)
+        currentOdds {
+            numerator
+            denominator
+            __typename
+        }
+        favorite
+        morningLineOdds {
+            numerator
+            denominator
+            __typename
+        }
+        runners {
+            runnerId
+            scratched
+            dob
+            ...handicappingFragment @include(if: $withHandicapping)
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment poolsFragment on Race {
+    racePools {
+        wagerType {
+            name
+            id
+            __typename
+        }
+        amount
+        __typename
+    }
+    __typename
+}
+fragment probablesFragment on Race {
+    probables {
+        betCombos {
+            runner1
+            runner2
+            payout
+            __typename
+        }
+        minWagerAmount
+        wagerType {
+            id
+            name
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment lateChangesFragment on Race {
+    lateChanges {
+        raceChanges {
+            description
+            date
+            newValue
+            oldValue
+            __typename
+        }
+        horseChanges {
+            horseName
+            runnerId
+            changes {
+                description
+                date
+                newValue
+                oldValue
+                __typename
+            }
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment resultsFragment on Race {
+    results {
+        payoffs {
+            selections {
+                payoutAmount
+                selection
+                __typename
+            }
+            wagerAmount
+            wagerType {
+                id
+                name
+                __typename
+            }
+            __typename
+        }
+        runners {
+            betAmount
+            runnerNumber
+            biNumber
+            finishPosition
+            placePayoff
+            runnerName
+            showPayoff
+            winPayoff
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment wagerTypesFragment on Race {
+    wagerTypes {
+        maxWagerAmount
+        minWagerAmount
+        wagerAmounts
+        hasPool
+        poolAmount
+        columnCount
+        legCount
+        minBIsPerLeg
+        maxBIsPerLeg
+        columnType
+        isBox
+        poolsPerBI
+        isKey
+        positionCount
+        isWheel
+        type {
+            id
+            code
+            name
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment willPaysFragment on Race {
+    willPays {
+        wagerAmount
+        payOffType
+        type {
+            id
+            code
+            name
+            __typename
+        }
+        legResults {
+            legNumber
+            winningBi
+            __typename
+        }
+        payouts {
+            bettingInterestNumber
+        payoutAmount
+        __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment biPoolsFragment on BettingInterest {
+    biPools {
+        poolRunnersData {
+            amount
+            __typename
+        }
+        wagerType {
+            id
+            __typename
+        }
+        __typename
+    }
+    __typename
+}

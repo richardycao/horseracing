@@ -1,0 +1,139 @@
+query getPastRaces( $filterBy: PastRaceListFilter, 
+                    $wagerProfile: String!, 
+                    $byDate: Boolean!, 
+                    $byDateTrack: Boolean!, 
+                    $date: String, 
+                    $trackCode: String, 
+                    $byDateTrackNumber: Boolean!, 
+                    $raceNumber: String, 
+                    $byHorseName: Boolean!, 
+                    $runnerName: String, 
+                    $runnerDob: Int) {
+    pastRacesByDate: pastRaces(filter: $filterBy, profile: $wagerProfile, date: $date, sort: {byPostTime: DESC}) @include(if: $byDate) {
+        ...pastRacesFragment
+        __typename
+    }
+    pastRacesByDateAndTrack: pastRaces(filter: $filterBy, profile: $wagerProfile, date: $date, trackCode: $trackCode, sort: {byPostTime: DESC}) @include(if: $byDateTrack) {
+        ...pastRacesFragment
+        __typename
+    }
+    pastRaceByDateTrackAndNumber: pastRaces(filter: $filterBy, profile: $wagerProfile, date: $date, trackCode: $trackCode, raceNumber: $raceNumber, sort: {byPostTime: DESC}) @include(if: $byDateTrackNumber) {
+        ...pastRacesFragment
+        ...bettingInterestsFragment
+        ...resultsFragment
+        __typename
+    }
+    pastRacesByHorseName: pastRaces(filter: $filterBy, runnerName: $runnerName, profile: $wagerProfile, sort: {byPostTime: DESC}, runnerDob: $runnerDob) @include(if: $byHorseName) {
+        ...pastRacesFragment
+        __typename
+    }
+}
+fragment bettingInterestsFragment on PastRace {
+    bettingInterests {
+        biNumber
+        numberColor
+        saddleColor
+        favorite
+        runners {
+            horseName
+            runnerId
+            weight
+            med
+            trainer
+            age
+            dam
+            ownerName
+            sex
+            scratched
+            jockey
+            damSire
+            sire
+            date
+            dob
+            __typename
+        }
+        morningLineOdds {
+            numerator
+            denominator
+            __typename
+        }
+        currentOdds {
+            numerator
+            denominator
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment resultsFragment on PastRace {
+    results {
+        runners {
+            biNumber
+            betAmount
+            runnerNumber
+            finishPosition
+            runnerName
+            winPayoff
+            placePayoff
+            showPayoff
+            __typename
+        }
+        payoffs {
+            wagerAmount
+            selections {
+                payoutAmount
+                selection
+                __typename
+            }
+            wagerType {
+                code
+                name
+                __typename
+            }
+            __typename
+        }
+        __typename
+    }
+    __typename
+}
+fragment pastRacesFragment on PastRace {
+    number
+    description
+    purse
+    date
+    postTime
+    track {
+        code
+        name
+        __typename
+    }
+    surface {
+        code
+        name
+        __typename
+    }
+    distance {
+        value
+        code
+        name
+        __typename
+    }
+    isGreyhound
+    type {
+        id
+        code
+        name
+        __typename
+    }
+    raceClass {
+        code
+        name
+        __typename
+    }
+    video {
+        replayFileName
+        __typename
+    }
+    __typename
+}

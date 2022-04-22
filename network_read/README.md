@@ -12,6 +12,9 @@
 - I can now safely cut the connection with the ec2 instance and the program should continue to run.
 - run `screen -r` to resume the session with the program. all the output should be there.
 - more about screen: https://stackoverflow.com/questions/32500498/how-to-make-a-process-run-on-aws-ec2-even-after-closing-the-local-machine
+`read_hist.py` - downloads historical static data
+- `python3 read_hist.py 2022-04-20 2022-04-20`
+- it doesn't stop for some reason, even after ctrl-c
 
 ======
 

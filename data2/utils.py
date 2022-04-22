@@ -116,8 +116,8 @@ def is_time_in_range(start, end, x):
 def horse_number_digits_only(n):
     return n if n[-1].isdigit() else n[:-1]
 def numerator(x):
-        parts = x.replace(' ','').split('/')
-        return float(parts[0])
+    parts = x.replace(' ','').split('/')
+    return float(parts[0])
 def denominator(x):
     parts = x.replace(' ','').split('/')
     return float(parts[1])
@@ -248,9 +248,9 @@ def create_data3(r, on_row, num_horses_limit, exact=False):
     morning_odds = pad_or_truncate(left['race morning odds'].apply(eval_frac).to_list(), num_horses_limit)
     age = pad_or_truncate(left['age'].to_list(), num_horses_limit)
     # print(snap['wins/starts'].apply(numerator))
-    wins = pad_or_truncate(snap['wins/starts'].apply(numerator).to_list(), num_horses_limit)
-    starts = pad_or_truncate(snap['wins/starts'].apply(denominator).to_list(), num_horses_limit)
-    winrate = pad_or_truncate(snap['wins/starts'].apply(eval_frac).to_list(), num_horses_limit)
+    # wins = pad_or_truncate(snap['wins/starts'].apply(numerator).to_list(), num_horses_limit)
+    # starts = pad_or_truncate(snap['wins/starts'].apply(denominator).to_list(), num_horses_limit)
+    # winrate = pad_or_truncate(snap['wins/starts'].apply(eval_frac).to_list(), num_horses_limit)
     num_races = pad_or_truncate(pace['num races'].to_list(), num_horses_limit)
     early = pad_or_truncate(pace['early'].to_list(), num_horses_limit)
     middle = pad_or_truncate(pace['middle'].to_list(), num_horses_limit)
@@ -260,20 +260,23 @@ def create_data3(r, on_row, num_horses_limit, exact=False):
     jockey_2nd_rate = pad_or_truncate(jock['2nd'].to_list(), num_horses_limit)
     jockey_3rd_rate = pad_or_truncate(jock['3rd'].to_list(), num_horses_limit)
 
-    power_rating = pad_or_truncate(snap['power rating'].replace('- ', np.nan).to_list(), num_horses_limit)
-    days_off = pad_or_truncate(snap['days off'].replace('- ', np.nan).to_list(), num_horses_limit)
-    avg_speed = pad_or_truncate(spee['avg speed'].replace('- ', np.nan).to_list(), num_horses_limit)
-    avg_distance = pad_or_truncate(spee['avg distance'].replace('- ', np.nan).to_list(), num_horses_limit)
-    high_speed = pad_or_truncate(spee['high speed'].replace('- ', np.nan).to_list(), num_horses_limit)
-    avg_class = pad_or_truncate(spee['avg class'].replace('- ', np.nan).to_list(), num_horses_limit)
-    last_class = pad_or_truncate(spee['last class'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # power_rating = pad_or_truncate(snap['power rating'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # days_off = pad_or_truncate(snap['days off'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # avg_speed = pad_or_truncate(spee['avg speed'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # avg_distance = pad_or_truncate(spee['avg distance'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # high_speed = pad_or_truncate(spee['high speed'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # avg_class = pad_or_truncate(spee['avg class'].replace('- ', np.nan).to_list(), num_horses_limit)
+    # last_class = pad_or_truncate(spee['last class'].replace('- ', np.nan).to_list(), num_horses_limit)
 
     labels = ['omega','odds',
               ###
-              'morning_odds','age','wins','starts','winrate','num_races','early','middle','finish',
+              'morning_odds','age',
+              #'wins','starts','winrate',
+              'num_races','early','middle','finish',
               'jockey_starts','jockey_1st_rate','jockey_2nd_rate','jockey_3rd_rate',
               ###
-              'power_rating','days_off','avg_speed','avg_distance','high_speed','avg_class','last_class']
+              # 'power_rating','days_off','avg_speed','avg_distance','high_speed','avg_class','last_class'
+              ]
 
     horse_i_list = [ 
         {
@@ -281,10 +284,12 @@ def create_data3(r, on_row, num_horses_limit, exact=False):
         } for features in zip(
             omega,odds,
             ###
-            morning_odds,age,wins,starts,winrate,num_races,early,middle,finish,
+            morning_odds,age,
+            # wins,starts,winrate,
+            num_races,early,middle,finish,
             jockey_starts,jockey_1st_rate,jockey_2nd_rate,jockey_3rd_rate,
             ###
-            power_rating,days_off,avg_speed,avg_distance,high_speed,avg_class,last_class
+            # power_rating,days_off,avg_speed,avg_distance,high_speed,avg_class,last_class
         )]
     
     on_row([d, t, s, pool_size, *horse_i_list, winner_horse_index])
