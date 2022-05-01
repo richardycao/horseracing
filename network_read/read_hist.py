@@ -17,14 +17,14 @@ def safe_makedir(path):
 def create_race_path(date_str, track_id, race_number):
     return f"./hist_data/{date_str}/{track_id}/{race_number}"
 
-def get_track_ids_by_date(date):
-    resp = api.getPastTracks('2022-04-16')
+def get_track_ids_by_date(date_str):
+    resp = api.getPastTracks(date_str)
     if resp == None:
-        print('getPastTracks response is None')
+        print('getPastTracks response is None', date_str)
         return None
     tracks = safe_get(resp, ['data','pastTracksByDate'])
     if tracks == None:
-        print('safe_get past tracks is None')
+        print('safe_get past tracks is None', date_str)
         return None
     track_ids = [safe_get(t, ['code']) for t in tracks]
     return track_ids
@@ -32,11 +32,11 @@ def get_track_ids_by_date(date):
 def get_race_numbers_by_date_and_track_id(date_str, track_id):
     resp = api.getPastRaces(date_str=date_str, track_id=track_id)
     if resp == None:
-        print('getPastRaces for date and track_id is None.')
+        print('getPastRaces for date and track_id is None.', date_str, track_id)
         return None
     races = safe_get(resp, ['data','pastRacesByDateAndTrack'])
     if races == None:
-        print('safe_get for getPastRaces for date and track_id is None.')
+        print('safe_get for getPastRaces for date and track_id is None.', date_str, track_id)
         return None
     race_numbers = [safe_get(r, ['number']) for r in races]
     return race_numbers
@@ -44,14 +44,14 @@ def get_race_numbers_by_date_and_track_id(date_str, track_id):
 def get_race_info(date_str, track_id, race_number):
     resp = api.getPastRaces(date_str=date_str, track_id=track_id, race_number=race_number)
     if resp == None:
-        print('getPastRaces for date, track_id, and race number is None.')
+        print('getPastRaces for date, track_id, and race number is None.', date_str, track_id, race_number)
         return None
     races = safe_get(resp, ['data','pastRaceByDateTrackAndNumber'])
     if races == None:
-        print('safe_get for getPastRaces for date, track_id, and race number is None.')
+        print('safe_get for getPastRaces for date, track_id, and race number is None.', date_str, track_id, race_number)
         return None
     if len(races) != 1:
-        print('getPastRaces gave more than 1 race for some reason.')
+        print('getPastRaces gave more than 1 race for some reason.', date_str, track_id, race_number)
         return None
     return races[0]
 
@@ -150,13 +150,16 @@ def extract_and_save_race_info(race, race_path):
 def download_races_by_date(date_str):
     track_ids = get_track_ids_by_date(date_str)
     if track_ids == None:
+        print('track ids id None.')
         return
     for track_id in track_ids:
-        # print(f'  {track_id}')
         if track_id == None:
+            print('track id is None.')
             continue
         race_numbers = get_race_numbers_by_date_and_track_id(date_str, track_id)
+        # print(track_id, race_numbers)
         if race_numbers == None:
+            print('race numbers is None.')
             continue
         for race_number in race_numbers:
             race_path = create_race_path(date_str, track_id, race_number)

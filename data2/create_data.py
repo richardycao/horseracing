@@ -49,6 +49,14 @@ class CreateData:
             for r in tqdm(self.races):
                 # print(r)
                 s = utils.create_data3(r, on_row, num_horses_limit=num_horses, exact=False)
+        elif self.mode == 'v4':
+            num_horses = 8
+            for r in tqdm(self.races):
+                s = utils.create_data4(r, on_row, num_horses_limit=num_horses, exact=True)
+            self.output.seek(0)
+            df = pd.read_csv(self.output, header=None)
+            df.to_csv(self.output_file, index=False, header=False)
+            return
         else:
             print(f'Invalid mode: {self.mode}')
             return

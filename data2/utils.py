@@ -5,6 +5,7 @@ import numpy as np
 import datetime as dt
 import re
 from scipy.stats import rankdata
+import json
 
 def get_race_date_time(r):
     race_parts = r.split('/')[-1].split('_')
@@ -116,11 +117,17 @@ def is_time_in_range(start, end, x):
 def horse_number_digits_only(n):
     return n if n[-1].isdigit() else n[:-1]
 def numerator(x):
-    parts = x.replace(' ','').split('/')
-    return float(parts[0])
+    try:
+        parts = x.replace(' ','').split('/')
+        return float(parts[0])
+    except:
+        return np.nan
 def denominator(x):
-    parts = x.replace(' ','').split('/')
-    return float(parts[1])
+    try:
+        parts = x.replace(' ','').split('/')
+        return float(parts[1])
+    except:
+        return np.nan
 def eval_frac(x):
     if isinstance(x, int) or isinstance(x, float) or isinstance(x, np.int64):
         return float(x)
@@ -293,3 +300,131 @@ def create_data3(r, on_row, num_horses_limit, exact=False):
         )]
     
     on_row([d, t, s, pool_size, *horse_i_list, winner_horse_index])
+
+def to_int(x):
+    try:
+        return int(x)
+    except:
+        return None
+def create_data4(r, on_row, num_horses_limit=10, exact=False):
+    present = are_all_csvs_present(r)
+    if not present:
+        return
+    
+    # General
+    d, t = get_race_date_time(r)
+    park = get_park_name(r)
+    pools = get_pools_df(r)
+    if pools.shape[0] > num_horses_limit or pools.shape[0] == 0:
+        return
+    if exact and pools.shape[0] != num_horses_limit:
+        return
+    details = get_details_df(r)
+    results = get_results_df(r)
+    left = get_racecard_left_df(r)
+    for n in left['number'].to_list():
+        if to_int(n) == None:
+            return
+    summ = get_racecard_summ_df(r)
+    snap = get_racecard_snap_df(r)
+    spee = get_racecard_spee_df(r)
+    pace = get_racecard_pace_df(r)
+    jock = get_racecard_jock_df(r)
+    takeouts = get_takeout_estimates_df()
+    takeout_vals = takeouts[takeouts['park'] == park]['takeout'].values
+    reset_idx_pools = pools.reset_index(drop=True)    
+
+    def conv_dist(dist):
+        dist_to_meters = {'f': 201.168,
+                            'mtr': 1,     # mtr (meter) comes before m (mile) in search
+                            'm': 1609.34,
+                            'y': 0.9144}
+        for k,v in dist_to_meters.items():
+            if k in dist:
+                return float(dist[:-len(k)]) * v
+        return None
+    
+    # race features
+    distance = conv_dist(details['distance'][0])
+    if distance == None:
+        return
+    race_dt = dt.datetime.strptime(f'{d} {t}', '%Y-%m-%d %I:%M %p')
+    pool_size = pools['win'].sum()
+    s = (1-takeout_vals[0]) if len(takeout_vals) > 0 else 0.8
+    winner_horse_index = reset_idx_pools[reset_idx_pools['numeric'] == int(results['horse numeric'][0])].index[0]
+
+    # bi features
+    omega = pad_or_truncate(pools['win'].to_list(), num_horses_limit)
+    odds = [(s*pool_size - oi)/oi if oi > 0 else 0 for oi in omega]
+
+    horse_name = pad_or_truncate(left['name'].replace('- ', None).to_list(), num_horses_limit)
+    age = pad_or_truncate(left['age'].to_list(), num_horses_limit)
+    sex = pad_or_truncate(left['gender'].replace('- ', None).to_list(), num_horses_limit)
+    sire = pad_or_truncate([sire_dam.split('-')[0].strip() if sire_dam != None else None for sire_dam in left['sire dam'].replace('- ', None).to_list()], num_horses_limit)
+    dam = pad_or_truncate([sire_dam.split('-')[1].strip() if sire_dam != None else None for sire_dam in left['sire dam'].replace('- ', None).to_list()], num_horses_limit)
+
+    trainer = pad_or_truncate(summ['trainer'].replace('- ', None).to_list(), num_horses_limit)
+    weight = pad_or_truncate(summ['weight'].replace('- ', None).to_list(), num_horses_limit)
+    jockey = pad_or_truncate(summ['jockey'].replace('- ', None).to_list(), num_horses_limit)
+    
+    if 'power rating' not in snap.columns:
+        return
+    power_rating = pad_or_truncate(snap['power rating'].replace('- ', None).to_list(), num_horses_limit)
+    starts = pad_or_truncate(snap['wins/starts'].apply(denominator).to_list(), num_horses_limit)
+    wins = pad_or_truncate(snap['wins/starts'].apply(numerator).to_list(), num_horses_limit)
+    days_off = pad_or_truncate(snap['days off'].replace('- ', None).to_list(), num_horses_limit)
+
+    avg_speed = pad_or_truncate(spee['avg speed'].replace('- ', None).to_list(), num_horses_limit)
+    avg_distance = pad_or_truncate(spee['avg distance'].replace('- ', None).to_list(), num_horses_limit)
+    high_speed = pad_or_truncate(spee['high speed'].replace('- ', None).to_list(), num_horses_limit)
+    avg_class = pad_or_truncate(spee['avg class'].replace('- ', None).to_list(), num_horses_limit)
+    last_class = pad_or_truncate(spee['last class'].replace('- ', None).to_list(), num_horses_limit)
+    
+    for c in [trainer, weight, jockey, power_rating, starts, wins, days_off, avg_speed, avg_distance,
+              high_speed, avg_class, last_class]:
+        for item in c:
+            if item == None:
+                return
+
+    num_races = pad_or_truncate(pace['num races'].to_list(), num_horses_limit)
+    early = pad_or_truncate(pace['early'].to_list(), num_horses_limit)
+    middle = pad_or_truncate(pace['middle'].to_list(), num_horses_limit)
+    finish = pad_or_truncate(pace['finish'].to_list(), num_horses_limit)
+
+    jockey_starts = pad_or_truncate(jock['starts'].to_list(), num_horses_limit)
+    jockey_1sts = pad_or_truncate(jock['1st'].to_list(), num_horses_limit)
+    jockey_2nds = pad_or_truncate(jock['2nd'].to_list(), num_horses_limit)
+    jockey_3rds = pad_or_truncate(jock['3rd'].to_list(), num_horses_limit)
+
+    finish_position = pad_or_truncate([1 if i==winner_horse_index else 0 for i in range(pools.shape[0])], num_horses_limit)
+
+    labels = [
+        'omega', 'odds',
+
+        'age','avgClassRating','avgDistance','avgSpeed','daysOff',
+        'highSpeed','horseStarts','horseWins','jockey','lastClassRating',
+        'powerRating','sex','sire','trainer','weight',
+
+        'numRaces','early','middle','finish','starts','wins','places','shows',
+
+        'horseName','dam',
+
+        'finishPosition',
+    ]
+    horse_i_list = [ 
+        json.dumps({
+            labels[i]: f for i, f in enumerate(features)
+        }) for features in zip(
+            omega, odds,
+
+            age, avg_class, avg_distance, avg_speed, days_off, high_speed, starts, wins, jockey,
+            last_class, power_rating, sex, sire, trainer, weight,
+
+            num_races, early, middle, finish, jockey_starts, jockey_1sts, jockey_2nds, jockey_3rds,
+
+            horse_name, dam,
+
+            finish_position,
+        )]
+    
+    on_row([distance, race_dt, pool_size, s, winner_horse_index, *horse_i_list])

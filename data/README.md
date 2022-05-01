@@ -14,7 +14,7 @@ Run `python3 predict_races.py bayes 2022-03-15 2022-04-02 avgs5.csv obs_bayes2_m
 
 Other tools:
 Run `python3 estimate_takeouts.py estimates.csv 2022-03-15 2022-03-26` to get takeout estimates at each park.
-Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26 daily` to get, for h horses in a race, the winrate of the horse with the nth-lowest odds. args: output file, start, end, mode (daily, hist)
+**(BROKEN)** Run `python3 estimate_odds_rank_winrates.py odds_ranks.csv 2022-03-15 2022-03-26 daily` to get, for h horses in a race, the winrate of the horse with the nth-lowest odds. args: output file, start, end, mode (daily, hist)
 
 ==========
 
