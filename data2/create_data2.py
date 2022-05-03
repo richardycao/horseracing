@@ -14,7 +14,7 @@ def to_float(x):
     except:
         return None
 
-def get_row(path, csv_writer, horse_limit=8, mode='not_exact'):
+def get_row(path, csv_writer, horse_limit=8, mode='not_exact', use_missing='False'):
     path_parts = path.split('/')
     race_number = path_parts[-1]
     track_id = path_parts[-2]
@@ -34,9 +34,10 @@ def get_row(path, csv_writer, horse_limit=8, mode='not_exact'):
     check_for_nans = ['powerRating','daysOff','horseWins','horseStarts','avgClassRating','highSpeed','avgSpeed','lastClassRating',
                     'avgDistance','numRaces','early','middle','finish','starts','wins','places','shows','finishPosition',
                     ]
-    for col in check_for_nans:
-        if bis[col].isna().sum() != 0:
-            return
+    if use_missing == 'False':
+        for col in check_for_nans:
+            if bis[col].isna().sum() != 0:
+                return
     bis.loc[:,'age'] = race_dt.year - bis.loc[:,'birthday']
     bis.loc[:,'winPayoff'] = bis.loc[:,'winPayoff'] / bis.loc[:,'betAmount']
     bis.loc[:,'placePayoff'] = bis.loc[:,'placePayoff'] / bis.loc[:,'betAmount']
@@ -63,7 +64,7 @@ def get_row(path, csv_writer, horse_limit=8, mode='not_exact'):
             details.loc[0,f'bi{h}'] = None
     csv_writer.writerow(details.loc[0])
 
-def main(output_file, start_str, end_str, horse_limit, mode):
+def main(output_file, start_str, end_str, horse_limit, mode, use_missing):
     start_date = dt.datetime.strptime(start_str, "%Y-%m-%d")
     end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
     output = StringIO()
@@ -77,11 +78,11 @@ def main(output_file, start_str, end_str, horse_limit, mode):
                 date = path_parts[-3]
                 race_dt = dt.datetime.strptime(date, '%Y-%m-%d')
                 if utils.is_time_in_range(start_date, end_date, race_dt):
-                    get_row(path, csv_writer, int(horse_limit), mode)
+                    get_row(path, csv_writer, int(horse_limit), mode, use_missing)
     output.seek(0)
     df = pd.read_csv(output)
     df.to_csv(f'./{output_file}', index=False)
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    main(args[0], args[1], args[2], args[3], args[4])
+    main(args[0], args[1], args[2], args[3], args[4], args[5])

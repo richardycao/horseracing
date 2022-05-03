@@ -9,11 +9,12 @@ import pandas as pd
 import sys
 
 class CreateData:
-    def __init__(self, output_file, start_str, end_str, mode):
+    def __init__(self, output_file, start_str, end_str, mode, use_missing):
         self.output_file = output_file
         self.start_date = dt.datetime.strptime(start_str, "%Y-%m-%d")
         self.end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
         self.mode = mode
+        self.use_missing = use_missing
 
         path = '../scrape/results'
         dates = [f for f in listdir(path) if not isfile(join(path, f))]
@@ -52,7 +53,7 @@ class CreateData:
         elif self.mode == 'v4':
             num_horses = 8
             for r in tqdm(self.races):
-                s = utils.create_data4(r, on_row, num_horses_limit=num_horses, exact=True)
+                s = utils.create_data4(r, on_row, num_horses_limit=num_horses, exact=True, use_missing=self.use_missing)
             self.output.seek(0)
             df = pd.read_csv(self.output, header=None)
             df.to_csv(self.output_file, index=False, header=False)
@@ -65,10 +66,10 @@ class CreateData:
         df = pd.read_csv(self.output)
         df.to_csv(self.output_file, index=False)
 
-def main(output_file, start, end, mode):
-    c = CreateData(output_file, start, end, mode)
+def main(output_file, start, end, mode, use_missing):
+    c = CreateData(output_file, start, end, mode, use_missing)
     c.run()
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    main(args[0], args[1], args[2], args[3])
+    main(args[0], args[1], args[2], args[3], args[4])

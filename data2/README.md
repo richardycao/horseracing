@@ -1,8 +1,8 @@
 
-Run `python3 create_data.py data8_6.csv 2022-03-15 2022-04-20 v4`. args: output_file, start_date, end_date (start and end dates are inclusive), mode (v1: pools only, v2: pools, omega_i, age, v3: everything, v4: everything, to match network_read format)
+Run `python3 create_data.py data8_6.csv 2022-03-15 2022-04-20 v4`. args: output_file, start_date, end_date (start and end dates are inclusive), mode (v1: pools only, v2: pools, omega_i, age, v3: everything, v4: everything, to match network_read format), use_missing ('True' or 'False')
 - `create_data` is for data in /scrape
 
-Run `python3 create_data2.py hist_data_upto12.csv 2021-06-01 2022-03-14 12 not_exact`. args: output_file, start_date, end_date, horse_limit, mode ('exact' or 'not_exact')
+Run `python3 create_data2.py hist_data_upto12.csv 2021-06-01 2022-03-14 12 not_exact`. args: output_file, start_date, end_date, horse_limit, mode ('exact' or 'not_exact'), use_missing ('True' or 'False')
 - `create_data2` is for data in /network_read
 - include a way to identify which race a sample comes from (postTime, datetime, track_id, race_number)
 

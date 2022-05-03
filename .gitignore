@@ -1,7 +1,11 @@
 **config**
 **scrape/results/**
+**scrape/historical_results/**
 **.DS_Store**
 **.csv**
 **.joblib**
 **.pkl**
 **pycache**
+**.ipynb_checkpoints*
+**network_read/hist_data**
+**network_read/data**
