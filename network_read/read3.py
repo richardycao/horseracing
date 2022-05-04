@@ -307,6 +307,7 @@ def main():
         races_list = get_latest_races()
         if races_list == None:
             print("  couldn't find latest races. skipping this cycle.")
+            return
         # a race may be removed from this list before results arrive. Need to get results after that.
         did_open_races_change = False
         for track_id, race_number in races_list:
