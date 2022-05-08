@@ -291,8 +291,13 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
     #         bi['payoutAmount']
     df_to_s3(s3, f'{race_path}/static_bi.csv', pd.DataFrame.from_dict(bis, orient='index'))
 
+def wait(start_time, duration_seconds):
+    while dt.datetime.now() - start_time <= dt.timedelta(seconds=duration_seconds):
+        pass
+
 def main():
     open_races = {}
+    wait_time = 12
 
     s3 = boto3.resource('s3',
         aws_access_key_id=os.environ.get('AWS_ACCESS_KEY'),
@@ -307,7 +312,8 @@ def main():
         races_list = get_latest_races()
         if races_list == None:
             print("  couldn't find latest races. skipping this cycle.")
-            return
+            wait(start_time, wait_time)
+            continue
         # a race may be removed from this list before results arrive. Need to get results after that.
         did_open_races_change = False
         for track_id, race_number in races_list:
@@ -341,8 +347,7 @@ def main():
                 print(f'  closing race {track_id} {race_number}')
         for race_id in races_to_remove:
             open_races.pop(race_id, None)
-        while dt.datetime.now() - start_time <= dt.timedelta(seconds=15):
-            pass
+        wait(start_time, wait_time)
 
 if __name__ == "__main__":
     main()

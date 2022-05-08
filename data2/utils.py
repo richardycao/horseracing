@@ -384,8 +384,12 @@ def create_data4(r, on_row, num_horses_limit=10, exact=False, use_missing='False
         for c in [trainer, weight, jockey, power_rating, starts, wins, days_off, avg_speed, avg_distance,
                 high_speed, avg_class, last_class]:
             for item in c:
-                if item == None:
+                if item == np.nan:
                     return
+    else:
+        for item in avg_class:
+            if item == np.nan:
+                return
 
     num_races = pad_or_truncate(pace['num races'].to_list(), num_horses_limit)
     early = pad_or_truncate(pace['early'].to_list(), num_horses_limit)
