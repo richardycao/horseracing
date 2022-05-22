@@ -94,4 +94,4 @@ def main(horseracing_path, feature_name):
 if __name__ == "__main__":
     args = sys.argv[1:]
     # path, feature_name
-    main(args[0], args[2])
+    main(args[0], args[1])
