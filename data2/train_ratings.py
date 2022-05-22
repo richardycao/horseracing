@@ -86,12 +86,12 @@ def main(horseracing_path, feature_name):
     print(data12.shape)
     del data12
 
-    horseName_ratings = get_ratings2(recent_data, 'horseName', num_race_features, 
+    horseName_ratings = get_ratings2(recent_data, feature_name, num_race_features, 
                                  min_required_uniques=5, uniques_upper_cutoff=1)
-    with open(horseracing_path + "horseName_ratings12_im_v2.json", "w") as f:
+    with open(horseracing_path + f"{feature_name}_ratings12_im_v2.json", "w") as f:
         json.dump(horseName_ratings, f)
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    # path, num_horses, feature_name
-    main(args[0], args[1], args[2])
+    # path, feature_name
+    main(args[0], args[2])
