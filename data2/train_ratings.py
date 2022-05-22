@@ -77,7 +77,7 @@ def get_ratings2(df, bi_feature, num_race_features, min_required_uniques=1, uniq
   params = choix.ilsr_pairwise(n_items, pairs, alpha=0.01)
   return { num_cat[i]: params[i] for i in range(len(params)) }
 
-def main(horseracing_path, feature_name):
+def main(horseracing_path, feature_name, min_uniques, max_uniques):
     num_race_features = 5
 
     data12 = pd.read_csv(horseracing_path + 'hist_data_upto12_includemissing.csv', header=None)
@@ -87,11 +87,11 @@ def main(horseracing_path, feature_name):
     del data12
 
     horseName_ratings = get_ratings2(recent_data, feature_name, num_race_features, 
-                                 min_required_uniques=5, uniques_upper_cutoff=1)
+                                 min_required_uniques=int(min_uniques), uniques_upper_cutoff=int(max_uniques))
     with open(horseracing_path + f"{feature_name}_ratings12_im_v2.json", "w") as f:
         json.dump(horseName_ratings, f)
 
 if __name__ == "__main__":
     args = sys.argv[1:]
     # path, feature_name
-    main(args[0], args[1])
+    main(args[0], args[1], args[2], args[3])
