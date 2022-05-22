@@ -354,42 +354,45 @@ def create_data4(r, on_row, num_horses_limit=10, exact=False, use_missing='False
     winner_horse_index = reset_idx_pools[reset_idx_pools['numeric'] == int(results['horse numeric'][0])].index[0]
 
     # bi features
-    omega = pad_or_truncate(pools['win'].to_list(), num_horses_limit)
+    df_filler = np.nan
+    df_um_filler = None
+    pt_filler = None
+    omega = pad_or_truncate(pools['win'].to_list(), num_horses_limit, filler_value=pt_filler)
     odds = [(s*pool_size - oi)/oi if oi > 0 else 0 for oi in omega]
 
-    horse_name = pad_or_truncate(left['name'].replace('- ', np.nan).to_list(), num_horses_limit)
-    age = pad_or_truncate(left['age'].to_list(), num_horses_limit)
-    sex = pad_or_truncate(left['gender'].replace('- ', np.nan).to_list(), num_horses_limit)
-    sire = pad_or_truncate([sire_dam.split('-')[0].strip() if sire_dam != np.nan else np.nan for sire_dam in left['sire dam'].replace('- ', np.nan).to_list()], num_horses_limit)
-    dam = pad_or_truncate([sire_dam.split('-')[1].strip() if sire_dam != np.nan else np.nan for sire_dam in left['sire dam'].replace('- ', np.nan).to_list()], num_horses_limit)
+    horse_name = pad_or_truncate(left['name'].replace('- ', df_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    age = pad_or_truncate(left['age'].to_list(), num_horses_limit, filler_value=pt_filler)
+    sex = pad_or_truncate(left['gender'].replace('- ', df_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    sire = pad_or_truncate([sire_dam.split('-')[0].strip() if sire_dam != df_filler else df_filler for sire_dam in left['sire dam'].replace('- ', df_filler).to_list()], num_horses_limit, filler_value=pt_filler)
+    dam = pad_or_truncate([sire_dam.split('-')[1].strip() if sire_dam != df_filler else df_filler for sire_dam in left['sire dam'].replace('- ', df_filler).to_list()], num_horses_limit, filler_value=pt_filler)
 
-    trainer = pad_or_truncate(summ['trainer'].replace('- ', np.nan).to_list(), num_horses_limit)
-    weight = pad_or_truncate(summ['weight'].replace('- ', np.nan).to_list(), num_horses_limit)
-    jockey = pad_or_truncate(summ['jockey'].replace('- ', np.nan).to_list(), num_horses_limit)
+    trainer = pad_or_truncate(summ['trainer'].replace('- ', df_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    weight = pad_or_truncate(summ['weight'].replace('- ', df_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    jockey = pad_or_truncate(summ['jockey'].replace('- ', df_filler).to_list(), num_horses_limit, filler_value=pt_filler)
     
     if 'power rating' not in snap.columns:
         return
-    power_rating = pad_or_truncate(snap['power rating'].replace('- ', np.nan).to_list(), num_horses_limit)
-    starts = pad_or_truncate(snap['wins/starts'].apply(denominator).to_list(), num_horses_limit)
-    wins = pad_or_truncate(snap['wins/starts'].apply(numerator).to_list(), num_horses_limit)
-    days_off = pad_or_truncate(snap['days off'].replace('- ', np.nan).to_list(), num_horses_limit)
+    power_rating = pad_or_truncate(snap['power rating'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    starts = pad_or_truncate(snap['wins/starts'].apply(denominator).to_list(), num_horses_limit, filler_value=pt_filler)
+    wins = pad_or_truncate(snap['wins/starts'].apply(numerator).to_list(), num_horses_limit, filler_value=pt_filler)
+    days_off = pad_or_truncate(snap['days off'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
 
-    avg_speed = pad_or_truncate(spee['avg speed'].replace('- ', np.nan).to_list(), num_horses_limit)
-    avg_distance = pad_or_truncate(spee['avg distance'].replace('- ', np.nan).to_list(), num_horses_limit)
-    high_speed = pad_or_truncate(spee['high speed'].replace('- ', np.nan).to_list(), num_horses_limit)
-    avg_class = pad_or_truncate(spee['avg class'].replace('- ', np.nan).to_list(), num_horses_limit)
-    last_class = pad_or_truncate(spee['last class'].replace('- ', np.nan).to_list(), num_horses_limit)
+    avg_speed = pad_or_truncate(spee['avg speed'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    avg_distance = pad_or_truncate(spee['avg distance'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    high_speed = pad_or_truncate(spee['high speed'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    avg_class = pad_or_truncate(spee['avg class'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
+    last_class = pad_or_truncate(spee['last class'].replace('- ', df_um_filler).to_list(), num_horses_limit, filler_value=pt_filler)
     
     if use_missing == 'False':
         for c in [trainer, weight, jockey, power_rating, starts, wins, days_off, avg_speed, avg_distance,
                 high_speed, avg_class, last_class]:
             for item in c:
-                if item == np.nan:
+                if item == None:
                     return
-    else:
-        for item in avg_class:
-            if item == np.nan:
-                return
+    # else:
+    #     for item in avg_class:
+    #         if item == filler:
+    #             return
 
     num_races = pad_or_truncate(pace['num races'].to_list(), num_horses_limit)
     early = pad_or_truncate(pace['early'].to_list(), num_horses_limit)

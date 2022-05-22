@@ -39,8 +39,10 @@ def get_row(path, csv_writer, horse_limit=8, mode='not_exact', use_missing='Fals
             if bis[col].isna().sum() != 0:
                 return
     else:
-        if bis['avgClassRating'].isna().sum() != 0:
-            return
+        pass
+        # this if statement doesn't actually change anything for some reason.
+        # if bis['avgClassRating'].isna().sum() != 0:
+        #     return
     bis.loc[:,'age'] = race_dt.year - bis.loc[:,'birthday']
     bis.loc[:,'winPayoff'] = bis.loc[:,'winPayoff'] / bis.loc[:,'betAmount']
     bis.loc[:,'placePayoff'] = bis.loc[:,'placePayoff'] / bis.loc[:,'betAmount']
