@@ -34,7 +34,8 @@ def should_skip_race(race):
         return True
     if bis != None:
         for bi in bis:
-            if len(bi['runners']) > 1:
+            runner = safe_get(bi, 'runners')
+            if runner != None and len(runner) > 1:
                 return True
     return False
 def err(msg, track_id, race_number):

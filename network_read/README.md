@@ -12,6 +12,7 @@
 - I can now safely cut the connection with the ec2 instance and the program should continue to run.
 - run `screen -r` to resume the session with the program. all the output should be there.
 - more about screen: https://stackoverflow.com/questions/32500498/how-to-make-a-process-run-on-aws-ec2-even-after-closing-the-local-machine
+- to kill a screen session, `screen -X -S <screen_id> kill`
 `read_hist.py` - downloads historical static data
 - `python3 read_hist.py 2022-05-31 2022-04-20`
 - first date is start_date (future). second date is end_date (past). so it gathers data while moving backwards in time.
