@@ -9,3 +9,5 @@
 **.ipynb_checkpoints*
 **network_read/hist_data**
 **network_read/data**
+**live_test/horse_estimator/**
+**.json**

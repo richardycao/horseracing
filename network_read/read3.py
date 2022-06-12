@@ -26,7 +26,7 @@ def safe_float(s):
 def create_date_path(race_dt):
     return race_dt.strftime('%Y-%m-%d')
 def create_race_path(date, track_id, race_number):
-    return f"v1/{date}/{track_id}/{race_number}"
+    return f"v2/{date}/{track_id}/{race_number}"
 def should_skip_race(race):
     # Checks if race has 1A
     bis = safe_get(race, ['bettingInterests'])
@@ -180,6 +180,7 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
         race_data[f'{code}_maxWagerAmount'] = [safe_get(wt, ['maxWagerAmount'])]
         race_data[f'{code}_minWagerAmount'] = [safe_get(wt, ['minWagerAmount'])]
         # race_data[f'{code}_wagerAmounts'] = str([safe_get(wt, ['wagerAmounts'])]) # this is a list
+    race_data['winningTime'] = safe_get(race, ['results','winningTime'])
     df_to_s3(s3, f'{race_path}/static_race.csv', pd.DataFrame(race_data))
 
     # horse info
@@ -213,6 +214,30 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
             continue
         for bi_horse in biRunners:
             bis[biNum]['runnerId'] = safe_get(bi_horse, ['runnerId'])
+            bis[biNum]['winProbability'] = safe_get(bi_horse, ['winProbability'])
+            print(f"win prob: {bis[biNum]['winProbability']}")
+            bis[biNum]['ratingStars'] = safe_get(bi_horse, ['ratingStars'])
+            bis[biNum]['analystsComments'] = safe_get(bi_horse, ['analystsComments'])
+            bis[biNum]['productionComment'] = safe_get(bi_horse, ['productionComment'])
+            bis[biNum]['formFigures'] = safe_get(bi_horse, ['formFigures'])
+            bis[biNum]['freePickNumber'] = safe_get(bi_horse, ['freePick','number'])
+            bis[biNum]['freePickInfo'] = safe_get(bi_horse, ['freePick','info'])
+            bis[biNum]['horseInFocus'] = safe_get(bi_horse, ['flags','horseInFocus'])
+            bis[biNum]['warningHorse'] = safe_get(bi_horse, ['flags','warningHorse'])
+            bis[biNum]['jockeyUplift'] = safe_get(bi_horse, ['flags','jockeyUplift'])
+            bis[biNum]['trainerUplift'] = safe_get(bi_horse, ['flags','trainerUplift'])
+            bis[biNum]['horsesForCoursePos'] = safe_get(bi_horse, ['flags','horsesForCoursePos'])
+            bis[biNum]['horsesForCourseNeg'] = safe_get(bi_horse, ['flags','horsesForCourseNeg'])
+            bis[biNum]['hotTrainer'] = safe_get(bi_horse, ['flags','hotTrainer'])
+            bis[biNum]['coldTrainer'] = safe_get(bi_horse, ['flags','coldTrainer'])
+            bis[biNum]['sectionalFlag'] = safe_get(bi_horse, ['flags','sectionalFlag'])
+            bis[biNum]['significantImprover'] = safe_get(bi_horse, ['flags','significantImprover'])
+            bis[biNum]['jockeyInForm'] = safe_get(bi_horse, ['flags','jockeyInForm'])
+            bis[biNum]['clearTopRated'] = safe_get(bi_horse, ['flags','clearTopRated'])
+            bis[biNum]['interestingJockeyBooking'] = safe_get(bi_horse, ['flags','interestingJockeyBooking'])
+            bis[biNum]['firstTimeBlinkers'] = safe_get(bi_horse, ['flags','firstTimeBlinkers'])
+            bis[biNum]['highestLastSpeedRating'] = safe_get(bi_horse, ['flags','highestLastSpeedRating'])
+            bis[biNum]['tissuePriceDecimal'] = safe_get(bi_horse, ['tissuePriceDecimal'])
             bis[biNum]['scratched'] = safe_get(bi_horse, ['scratched'])
             bis[biNum]['birthday'] = safe_get(bi_horse, ['dob'])
             bis[biNum]['horseName'] = safe_get(bi_horse, ['horseName'])
@@ -226,10 +251,14 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
             bis[biNum]['dam'] = safe_get(bi_horse, ['dam'])
             bis[biNum]['age'] = safe_get(bi_horse, ['age'])
             bis[biNum]['sex'] = safe_get(bi_horse, ['sex'])
+            bis[biNum]['normalisedPowerRating'] = safe_get(bi_horse, ['handicapping','snapshot','normalisedPowerRating'])
+            print(f"normalized power: {bis[biNum]['normalisedPowerRating']}")
             bis[biNum]['powerRating'] = safe_get(bi_horse, ['handicapping','snapshot','powerRating'])
             bis[biNum]['daysOff'] = safe_get(bi_horse, ['handicapping','snapshot','daysOff'])
             bis[biNum]['horseWins'] = safe_get(bi_horse, ['handicapping','snapshot','horseWins'])
             bis[biNum]['horseStarts'] = safe_get(bi_horse, ['handicapping','snapshot','horseStarts'])
+            bis[biNum]['normalisedSpeedRating'] = safe_get(bi_horse, ['handicapping','speedAndClass','normalisedSpeedRating'])
+            print(f"normalized speed: {bis[biNum]['normalisedSpeedRating']}")
             bis[biNum]['avgClassRating'] = safe_get(bi_horse, ['handicapping','speedAndClass','avgClassRating'])
             bis[biNum]['highSpeed'] = safe_get(bi_horse, ['handicapping','speedAndClass','highSpeed'])
             bis[biNum]['avgSpeed'] = safe_get(bi_horse, ['handicapping','speedAndClass','avgSpeed'])
@@ -272,6 +301,13 @@ def get_static_race_data(track_id: str, race_number: str, race_path: str, s3):
         bis[biNum]['winPayoff'] = safe_get(runner, ['winPayoff'])
         bis[biNum]['placePayoff'] = safe_get(runner, ['placePayoff'])
         bis[biNum]['showPayoff'] = safe_get(runner, ['showPayoff'])
+        bis[biNum]['beatenDistance'] = safe_get(runner, ['timeform','beatenDistance'])
+        bis[biNum]['beatenDistanceStatus'] = safe_get(runner, ['timeform','beatenDistanceStatus'])
+        bis[biNum]['isp'] = safe_get(runner, ['timeform','isp'])
+        bis[biNum]['postRaceReport'] = safe_get(runner, ['timeform','postRaceReport'])
+        bis[biNum]['accBeatenDistance'] = safe_get(runner, ['timeform','accBeatenDistance'])
+        bis[biNum]['accBeatenDistanceStatus'] = safe_get(runner, ['timeform','accBeatenDistanceStatus'])
+        bis[biNum]['accBeatenDistanceStatusAbrev'] = safe_get(runner, ['timeform','accBeatenDistanceStatusAbrev'])
 
     # Each willpay has a type, indicated by a code. (e.g. daily double (DB), pick 3 (P3))
     # I only have to look out for these wager types: https://www.winningponies.com/help/wager-types.html
