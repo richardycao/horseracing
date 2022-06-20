@@ -15,7 +15,7 @@ def safe_get(d: dict, keys: list):
 def safe_makedir(path):
     Path(path).mkdir(parents=True, exist_ok=True)
 def create_race_path(date_str, track_id, race_number):
-    return f"./hist_data/{date_str}/{track_id}/{race_number}"
+    return f"./hist_data_v2/{date_str}/{track_id}/{race_number}"
 
 def get_track_ids_by_date(date_str):
     resp = api.getPastTracks(date_str)
@@ -56,10 +56,9 @@ def get_race_info(date_str, track_id, race_number):
     return races[0]
 
 def extract_and_save_race_info(race, race_path):
-    safe_makedir(race_path)
-
     # details
     race_data = {
+        'postTime': [safe_get(race, ['postTime'])],
         'distance': [safe_get(race, ['distance','value'])],
         'distance_unit': [safe_get(race, ['distance','code'])],
         'purse': [safe_get(race, ['purse'])],
@@ -67,7 +66,11 @@ def extract_and_save_race_info(race, race_path):
         'race_type_code': [safe_get(race, ['type','code'])],
         'race_type_name': [safe_get(race, ['type','name'])],
         'race_class': [safe_get(race, ['raceClass','name'])],
+        'winningTime': [safe_get(race, ['results','winningTime'])],
     }
+    if not race_data['winningTime'][0]:
+        return
+    safe_makedir(race_path)
     pd.DataFrame(race_data).to_csv(f'{race_path}/details.csv')
 
     # bis
@@ -145,6 +148,13 @@ def extract_and_save_race_info(race, race_path):
         bis[biNum]['winPayoff'] = safe_get(runner, ['winPayoff'])
         bis[biNum]['placePayoff'] = safe_get(runner, ['placePayoff'])
         bis[biNum]['showPayoff'] = safe_get(runner, ['showPayoff'])
+        bis[biNum]['beatenDistance'] = safe_get(runner, ['timeform','beatenDistance'])
+        bis[biNum]['beatenDistanceStatus'] = safe_get(runner, ['timeform','beatenDistanceStatus'])
+        bis[biNum]['isp'] = safe_get(runner, ['timeform','isp'])
+        bis[biNum]['postRaceReport'] = safe_get(runner, ['timeform','postRaceReport'])
+        bis[biNum]['accBeatenDistance'] = safe_get(runner, ['timeform','accBeatenDistance'])
+        bis[biNum]['accBeatenDistanceStatus'] = safe_get(runner, ['timeform','accBeatenDistanceStatus'])
+        bis[biNum]['accBeatenDistanceStatusAbrev'] = safe_get(runner, ['timeform','accBeatenDistanceStatusAbrev'])
     pd.DataFrame.from_dict(bis, orient='index').to_csv(f'{race_path}/bis.csv')
 
 def download_races_by_date(date_str):

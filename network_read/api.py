@@ -122,7 +122,6 @@ def getRaceProgram(track_id: str, race_number: str, live=False):
             resp = requests.post(url, data=json.dumps(getRaceProgramLive_payload(track_id, race_number)))
         else:
             resp = requests.post(url, data=json.dumps(getRaceProgramStatic_payload(track_id, race_number)))
-        # print(resp.status_code)
         resp = json.loads(resp.text)
         return resp
     except:

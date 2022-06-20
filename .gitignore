@@ -11,3 +11,4 @@
 **network_read/data**
 **live_test/horse_estimator/**
 **.json**
+**/mlp_models/**
