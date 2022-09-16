@@ -28,14 +28,26 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     date = path_parts[-3]
     race_dt = dt.datetime.strptime(date, '%Y-%m-%d')
 
+    # if track_id != 'MNR' or race_number != '7' or date != '2022-06-13':
+    #     return
+
     bis = pd.read_csv(f'{path}/static_bi.csv')
     live = pd.read_csv(f'{path}/live.csv')
     live['datetime'] = live['datetime'].apply(lambda x: dt.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f"))
 
-    bis = bis[bis['scratched'] == False]
     not_scratched_idxs = bis[bis['scratched'] == False].index.tolist()
-    live = live.iloc[:, np.array([-1]+ not_scratched_idxs)+2].copy() # -1 is datetime
+    # print(not_scratched_idxs, live.shape, path)
+    all_horses = bis.shape[0]
+    bis = bis[bis['scratched'] == False].copy()
+    bis = bis.reset_index(drop=True)
     num_horses = bis.shape[0]
+    # print(live.columns)
+    if live.shape[1] == all_horses + 2: # scratched horses not omitted
+        live = live.iloc[:, np.array([-1]+ not_scratched_idxs)+2].copy() # -1 is datetime
+    else:
+        print('weird number of live columns')
+        print(path)
+        return
 
     if mode == 'exact':
         if bis.shape[0] != horse_limit:
@@ -43,7 +55,7 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     else:
         if bis.shape[0] > horse_limit:
             return
-    to_keep = ['winProbability','finishPosition']
+    to_keep = ['winProbability','finishPosition','horseName']
     bis = bis[to_keep]
 
     pools = pd.DataFrame.from_dict([extract_dict(d) for d in live.iloc[-1,1:].tolist()])
@@ -69,17 +81,34 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     live = live.iloc[:race_end_idx,:]
     if live.shape[0] == 0:
         return
+    # print(live.columns)
     live_after_delay = live[live['datetime'] > live['datetime'][0] + dt.timedelta(minutes=5, seconds=0)]
     if live_after_delay.shape[0] == 0:
         return
 
+    # print(path)
+    # print(pools.shape)
+    # print(pools)
+    # print(bis)
     bis['omega'] = pools['Win'].tolist()
     bis['odds'] = (omega*s - bis['omega']) / bis['omega']
+    # print(pools['odds_numerator'], pools['odds_denominator'])
+    # if np.sum(pools['odds_numerator'].isna()) > 0:
+    #     print(path, "numberator is NaN")
+    # print(path)
+    bis['odds_fraction'] = pools['odds_numerator'] / pools['odds_denominator'].replace(np.nan, 1)#apply(lambda x: x if not np.isnan(x) else 1)
+    # print(pools['odds_numerator'])
+    # print(pools['odds_denominator'])
+    # print(pools['odds_denominator'].apply(lambda x: x if not np.isnan(x) else 1))
+    # print(bis['odds_fraction'])
 
     omega_rt_i_list = [ns for ns in [extract_dict(d).get('Win', 0) for d in live_after_delay.iloc[0,1:].to_list()]]
     omega_rt = np.sum(omega_rt_i_list)
     bis['omega_rt'] = omega_rt_i_list
     bis['odds_rt'] = (omega_rt*s - bis['omega_rt']) / bis['omega_rt']
+    odds_fraction_rt_i_list = [(ns['odds_numerator'], ns['odds_denominator']) for ns in [extract_dict(d) for d in live_after_delay.iloc[0,1:].to_list()]]
+    bis['odds_fraction_rt'] = [(of[0] if of[0] != None else 0)/(of[1] if of[1] != None else 1) for of in odds_fraction_rt_i_list]
+    # print(bis['odds_fraction_rt'])
 
     row = [live_after_delay.iloc[0,:]['datetime']]
     # row = [num_horses, live_after_delay.iloc[0,:]['datetime'], omega, s, winning_index] # index 0 is a a placeholder value. can be replaced with something useful later.

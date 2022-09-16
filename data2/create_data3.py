@@ -37,10 +37,17 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     live = pd.read_csv(f'{path}/live.csv')
     live['datetime'] = live['datetime'].apply(lambda x: dt.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f"))
 
-    bis = bis[bis['scratched'] == False]
     not_scratched_idxs = bis[bis['scratched'] == False].index.tolist()
-    live = live.iloc[:, np.array([-1]+ not_scratched_idxs)+2].copy() # -1 is datetime
+    all_horses = bis.shape[0]
+    bis = bis[bis['scratched'] == False].copy()
+    bis = bis.reset_index(drop=True)
     num_horses = bis.shape[0]
+    if live.shape[1] == all_horses + 2: # scratched horses not omitted
+        live = live.iloc[:, np.array([-1]+ not_scratched_idxs)+2].copy() # -1 is datetime
+    else:
+        print('weird number of live columns')
+        print(path)
+        return
 
     if mode == 'exact':
         if bis.shape[0] != horse_limit:
@@ -65,10 +72,11 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     bis.loc[:,'winPayoff'] = bis.loc[:,'winPayoff'] / bis.loc[:,'betAmount']
     bis.loc[:,'placePayoff'] = bis.loc[:,'placePayoff'] / bis.loc[:,'betAmount']
     bis.loc[:,'showPayoff'] = bis.loc[:,'showPayoff'] / bis.loc[:,'betAmount']
-    to_keep = [
+    to_keep = ['runnerId',
             'horseName','jockey','trainer','owner','weight','sire','damSire','dam','age','sex','powerRating',
             'daysOff','horseWins','horseStarts','avgClassRating','highSpeed','avgSpeed','lastClassRating','avgDistance',
             'numRaces','early','middle','finish','starts','wins','places','shows',
+            # 'winProbability',
             'finishPosition']
     bis = bis[to_keep]
 
@@ -111,6 +119,7 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     # print(f'pools win:\n{pools["Win"]}')
     bis['omega'] = pools['Win'].tolist()
     bis['odds'] = (omega*s - bis['omega']) / bis['omega']
+    bis['odds_fraction'] = pools['odds_numerator'] / pools['odds_denominator'].replace(np.nan, 1)#apply(lambda x: x if not np.isnan(x) else 1)
 
     # print(f"bis omega: {bis['omega']}")
     # print(f"bis odds: {bis['odds']}")
@@ -119,6 +128,8 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     omega_rt = np.sum(omega_rt_i_list)
     bis['omega_rt'] = omega_rt_i_list
     bis['odds_rt'] = (omega_rt*s - bis['omega_rt']) / bis['omega_rt']
+    odds_fraction_rt_i_list = [(ns['odds_numerator'], ns['odds_denominator']) for ns in [extract_dict(d) for d in live_after_delay.iloc[0,1:].to_list()]]
+    bis['odds_fraction_rt'] = [(of[0] if of[0] != None else 0)/(of[1] if of[1] != None else 1) for of in odds_fraction_rt_i_list]
 
     # print(f"bis omega rt: {bis['omega_rt']}")
     # print(f"bis odds rt: {bis['odds_rt']}")
@@ -141,7 +152,7 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
             row.append(json.dumps(bis_list[h]))
         else:
             row.append(None)
-    row.extend([num_horses, omega, s, winning_index])
+    row.extend([f'{track_id}-{race_number}',num_horses, omega, s, winning_index])
     
     csv_writer.writerow(row)
 
@@ -152,7 +163,7 @@ def main(output_file, start_str, end_str, horse_limit, mode, use_missing):
     csv_writer = writer(output)
     takeouts = pd.read_csv('takeout_estimates_s3.csv')
 
-    for path, subdir, files in tqdm(os.walk("../../s3_data/v1")):
+    for path, subdir, files in tqdm(os.walk("../../s3_data")):
         if len(files) > 0:
             if 'static_race.csv' in files and 'static_bi.csv' in files and 'live.csv' in files:
                 path_parts = path.split('/')

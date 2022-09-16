@@ -1,5 +1,6 @@
 import os
 import datetime as dt
+import numpy as np
 import pandas as pd
 from io import StringIO
 from csv import writer
@@ -14,7 +15,7 @@ def to_float(x):
     except:
         return None
 
-def get_row(path, csv_writer, horse_limit=8, mode='not_exact', use_missing='False'):
+def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_missing='False'):
     path_parts = path.split('/')
     race_number = path_parts[-1]
     track_id = path_parts[-2]
@@ -47,11 +48,13 @@ def get_row(path, csv_writer, horse_limit=8, mode='not_exact', use_missing='Fals
     bis.loc[:,'winPayoff'] = bis.loc[:,'winPayoff'] / bis.loc[:,'betAmount']
     bis.loc[:,'placePayoff'] = bis.loc[:,'placePayoff'] / bis.loc[:,'betAmount']
     bis.loc[:,'showPayoff'] = bis.loc[:,'showPayoff'] / bis.loc[:,'betAmount']
-    to_keep = [#'runnerId',
+    bis.loc[:,'currentOdds_denominator'] = bis.loc[:,'currentOdds_denominator'].replace(np.nan, 1)
+    bis.loc[:,'odds'] = (bis.loc[:,'currentOdds_numerator'] / bis.loc[:,'currentOdds_denominator'])
+    to_keep = ['runnerId',
             'horseName','jockey','trainer','owner','weight','sire','damSire','dam','age','sex','powerRating',
             'daysOff','horseWins','horseStarts','avgClassRating','highSpeed','avgSpeed','lastClassRating','avgDistance',
             'numRaces','early','middle','finish','starts','wins','places','shows',
-            'finishPosition']
+            'finishPosition','odds']
     bis = bis[to_keep]
 
     dist_to_meters = {'f': 201.168,
@@ -59,7 +62,16 @@ def get_row(path, csv_writer, horse_limit=8, mode='not_exact', use_missing='Fals
                       'm': 1609.34,
                       'y': 0.9144}
     details.loc[0,'distance'] = details.loc[0,'distance'] * dist_to_meters[details.loc[0,'distance_unit'].lower()]
-    details = details[['distance','surface_name','race_type_code','race_class']]
+    
+    # replacing race_class for s (1-takeout), to predict final odds #
+    details = details[['distance','surface_name','race_type_code']]#,'race_class']]
+    takeout_row = takeouts[takeouts.iloc[:,0]==track_id]
+    s = 0.8
+    if takeout_row.shape[0] > 0:
+        s = 1 - takeouts[takeouts.iloc[:,0]==track_id].iloc[0,1]
+    details.loc[:,'s'] = [s]
+    # end of replace #
+
     details.loc[:,'race_path'] = [path]
     bis_list = bis.to_dict('records')
     for h in range(horse_limit):
@@ -74,6 +86,7 @@ def main(output_file, start_str, end_str, horse_limit, mode, use_missing):
     end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
     output = StringIO()
     csv_writer = writer(output)
+    takeouts = pd.read_csv('takeout_estimates_s3.csv')
 
     for path, subdir, files in tqdm(os.walk("../network_read/hist_data")):
         if len(files) > 0:
@@ -83,7 +96,7 @@ def main(output_file, start_str, end_str, horse_limit, mode, use_missing):
                 date = path_parts[-3]
                 race_dt = dt.datetime.strptime(date, '%Y-%m-%d')
                 if utils.is_time_in_range(start_date, end_date, race_dt):
-                    get_row(path, csv_writer, int(horse_limit), mode, use_missing)
+                    get_row(path, csv_writer, takeouts, int(horse_limit), mode, use_missing)
     output.seek(0)
     df = pd.read_csv(output)
     df.to_csv(f'./{output_file}', index=False)
