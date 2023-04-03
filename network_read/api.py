@@ -157,6 +157,22 @@ def getPastTracks(date_str):
 
 # getPastRaces
 
+def getPastRacesDate_payload(date_str):
+    return {
+        "operationName": "getPastRaces",
+        "query": "query getPastRaces($filterBy: PastRaceListFilter, $wagerProfile: String!, $byDate: Boolean!, $byDateTrack: Boolean!, $date: String, $trackCode: String, $byDateTrackNumber: Boolean!, $raceNumber: String, $byHorseName: Boolean!, $runnerName: String, $runnerDob: Int) {\n  pastRacesByDate: pastRaces(filter: $filterBy, profile: $wagerProfile, date: $date, sort: {byPostTime: DESC}) @include(if: $byDate) {\n    ...pastRacesFragment\n    __typename\n  }\n  pastRacesByDateAndTrack: pastRaces(filter: $filterBy, profile: $wagerProfile, date: $date, trackCode: $trackCode, sort: {byPostTime: DESC}) @include(if: $byDateTrack) {\n    ...pastRacesFragment\n    __typename\n  }\n  pastRaceByDateTrackAndNumber: pastRaces(filter: $filterBy, profile: $wagerProfile, date: $date, trackCode: $trackCode, raceNumber: $raceNumber, sort: {byPostTime: DESC}) @include(if: $byDateTrackNumber) {\n    ...pastRacesFragment\n    ...bettingInterestsFragment\n    ...resultsFragment\n    __typename\n  }\n  pastRacesByHorseName: pastRaces(filter: $filterBy, runnerName: $runnerName, profile: $wagerProfile, sort: {byPostTime: DESC}, runnerDob: $runnerDob) @include(if: $byHorseName) {\n    ...pastRacesFragment\n    __typename\n  }\n}\n\nfragment bettingInterestsFragment on PastRace {\n  bettingInterests {\n    biNumber\n    numberColor\n    saddleColor\n    favorite\n    runners {\n      horseName\n      runnerId\n      weight\n      med\n      trainer\n      age\n      dam\n      ownerName\n      sex\n      scratched\n      jockey\n      damSire\n      sire\n      date\n      dob\n      __typename\n    }\n    morningLineOdds {\n      numerator\n      denominator\n      __typename\n    }\n    currentOdds {\n      numerator\n      denominator\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment resultsFragment on PastRace {\n  results {\n    runners {\n      biNumber\n      timeform {  beatenDistance\n beatenDistanceStatus\n isp\n postRaceReport\n accBeatenDistance\n accBeatenDistanceStatus\n accBeatenDistanceStatusAbrev\n __typename\n }\n betAmount\n      runnerNumber\n      finishPosition\n      runnerName\n      winPayoff\n      placePayoff\n      showPayoff\n      __typename\n    }\n    winningTime\n payoffs {\n      wagerAmount\n      selections {\n        payoutAmount\n        selection\n        __typename\n      }\n      wagerType {\n        code\n        name\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment pastRacesFragment on PastRace {\n  number\n  description\n  purse\n  date\n  postTime\n  track {\n    code\n    name\n    __typename\n  }\n  surface {\n    code\n    name\n    __typename\n  }\n  distance {\n    value\n    code\n    name\n    __typename\n  }\n  isGreyhound\n  type {\n    id\n    code\n    name\n    __typename\n  }\n  raceClass {\n    code\n    name\n    __typename\n  }\n  video {\n    replayFileName\n    __typename\n  }\n  __typename\n}\n",        "variables": {
+            "byDate": True,
+            "byDateTrack": False,
+            "byDateTrackNumber": False,
+            "byHorseName": False,
+            "date": date_str,
+            "filterBy": {
+                "isGreyhound": False,
+            },
+            "wagerProfile": "PORT-Generic",
+        }
+    }
+
 def getPastRacesDateTrack_payload(date_str, track_id):
     return {
         "operationName": "getPastRaces",
@@ -192,7 +208,9 @@ def getPastRacesDateTrackNumber_payload(date_str, track_id, race_number):
 def getPastRaces(date_str, track_id=None, race_number=None):
     url = 'https://service.tvg.com/fcp/v1/query'
     try:
-        if track_id != None and race_number == None:
+        if track_id == None and race_number == None:
+            resp = requests.post(url, data=json.dumps(getPastRacesDate_payload(date_str)))
+        elif track_id != None and race_number == None:
             resp = requests.post(url, data=json.dumps(getPastRacesDateTrack_payload(date_str, track_id)))
         elif track_id != None and race_number != None:
             resp = requests.post(url, data=json.dumps(getPastRacesDateTrackNumber_payload(date_str, track_id, race_number)))

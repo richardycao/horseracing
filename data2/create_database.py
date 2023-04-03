@@ -1,3 +1,4 @@
+from sqlalchemy import create_engine, Table, Column, MetaData, Integer, String, Float, DateTime
 import os
 import datetime as dt
 import numpy as np
@@ -82,6 +83,61 @@ def get_row(path, csv_writer, takeouts, horse_limit=8, mode='not_exact', use_mis
     csv_writer.writerow(details.loc[0])
 
 def main(output_file, start_str, end_str, horse_limit, mode, use_missing):
+    engine = create_engine("postgresql://user:password@localhost:5432/horseracing")
+    metadata = MetaData()
+    bi_table = Table(
+        "betting_interests", metadata,
+        Column('id', Integer, primary_key=True),
+        Column('race_id', Integer),
+        Column('horse_id', Integer),
+        Column('jockey', Integer),
+        Column('trainer', Integer),
+        Column('runnerId', Integer),
+        Column('weight', Integer),
+        Column('age', Integer),
+        Column('powerRating', Float),
+        Column('daysOff', Integer),
+        Column('horseWins', Integer),
+        Column('horseStarts', Integer),
+        Column('avgClassRating', Float),
+        Column('highSpeed', Float),
+        Column('avgSpeed', Float),
+        Column('lastClassRating', Float),
+        Column('avgDistance', Float),
+        Column('numRaces', Integer),
+        Column('early', Float),
+        Column('middle', Float),
+        Column('finish', Float),
+        Column('starts', Integer),
+        Column('wins', Integer),
+        Column('places', Integer),
+        Column('shows', Integer),
+        Column('finishPosition', Float),
+        Column('odds', Float),
+        Column('postRaceReport', String),
+        Column('accBeatenDistance', Float),
+    )
+    race_table = Table(
+        "races", metadata,
+        Column('id', Integer, primary_key=True),
+        Column('datetime', DateTime),
+        Column('distance', Integer),
+        Column('surface_name', String),
+        Column('race_type_code', String),
+        Column('race_class', String),
+        Column('winningTime', Float),
+    )
+    horse_table = Table(
+        "horses", metadata,
+        Column('id', Integer, primary_key=True),
+        Column('horseName', String),
+        Column('owner', String),
+        Column('sire', String),
+        Column('damSire', String),
+        Column('dam', String),
+        Column('sex', String),
+    )
+
     start_date = dt.datetime.strptime(start_str, "%Y-%m-%d")
     end_date = dt.datetime.strptime(end_str, "%Y-%m-%d")
     output = StringIO()

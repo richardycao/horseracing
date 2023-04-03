@@ -8,6 +8,11 @@ Run `python3 create_data2.py hist_data_1y_includemissing.csv 2021-03-15 2022-03-
 - include a way to identify which race a sample comes from (postTime, datetime, track_id, race_number)
 - this is for training
 
+Run `python3 create_data2_v2.py hist_data_1y_xgboost_upto12.csv 2021-03-15 2022-03-14 12`. args: output_file, start_date, end_date, horse_limit
+- `create_data2_v2` is for data in /network_read
+- this is specifically for training xgboost, since xgboost can handle missing data.
+- this is for training
+
 Run `python3 create_data3.py live_data_upto12.csv 2022-04-21 2022-05-31 12 not_exact Some`. args: output_file, start_date, end_date, horse_limit, mode ('exact' or 'not_exact'), use_missing ('True', 'Some', or 'False')
 - `create_data3` is for data from s3
 - this is for simulation on pre-final pools
